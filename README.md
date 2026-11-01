@@ -2,7 +2,7 @@
 
 瀏覽器上的 3D 飛行模擬遊戲（Three.js），從 **臺灣桃園國際機場 (RCTP) 05R** 起飛，沿琉球群島與日本南岸飛往 **東京成田國際機場 (RJAA) 34L**。
 
-**線上遊玩：** https://stwater20.github.io/airplane/
+**線上遊玩：** https://airplane.sectools.tw/
 
 ## 輕鬆模式（預設，手機可玩）
 

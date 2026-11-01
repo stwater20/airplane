@@ -58,6 +58,7 @@
   #cbar { display: none; position: fixed; left: 12px; bottom: 12px; gap: 8px; }
   body.casual #cbar { display: flex; }
   body.casual #fcu, body.casual #touch { display: none !important; }
+  body.casual #toast { top: 34%; }
   #cbar button { background: rgba(8,18,32,0.7); color: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-size: 15px; cursor: pointer; }
   #cbar .skip { display: none; background: #ffc83d; color: #1a1200; font-weight: bold; border: 0; }
   body[data-stage="cruise"] #cbar .skip { display: block; }
@@ -145,6 +146,7 @@
 <div id="cbar">
   <button data-c="pause" aria-label="暫停">⏸</button>
   <button data-c="cam">🎥 視角</button>
+  <button data-c="voice" aria-label="語音廣播">🔊</button>
   <button data-c="skip" class="skip">⏩ 跳到降落</button>
 </div>
 

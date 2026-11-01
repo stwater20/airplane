@@ -24,7 +24,7 @@ const startRunway = runways.find((r) => r.airport === 'TPE' && r.id.startsWith('
 ac.placeOnRunway(startRunway, -1);
 ap.hdg = startRunway.heading;
 
-const sim = { ac, ap, camera, timeScale: 1, paused: true, camMode: 0, started: false, casual: true };
+const sim = { ac, ap, camera, timeScale: 1, paused: true, camMode: 0, started: false, casual: true, voice: true };
 window.__sim = sim;
 const casual = new Casual(scene, sim, (m) => toast(m));
 sim.casualGame = casual;
@@ -182,6 +182,7 @@ function startGame(easy) {
   sim.started = true;
   sim.paused = false;
   document.getElementById('menu').classList.add('hidden');
+  if (easy && window.speechSynthesis) speechSynthesis.speak(new SpeechSynthesisUtterance(''));   // iOS 需在點擊時解鎖語音
   if (easy) { casual.reset(); casual.setStage('takeoff', '自動起飛中…離地後拖曳畫面操控！'); } else toast('油門 R 推到 100%，速度 150 kt 時按 S/↓ 拉起');
 }
 document.getElementById('startBtn').addEventListener('click', () => startGame(true));
@@ -192,6 +193,10 @@ document.querySelectorAll('[data-c]').forEach((b) => b.addEventListener('click',
   if (c === 'skip' && casual.stage === 'cruise') casual.toApproach();
   if (c === 'pause') { sim.paused = !sim.paused; b.textContent = sim.paused ? '▶' : '⏸'; }
   if (c === 'menu') location.reload();
+  if (c === 'voice') {
+    sim.voice = !sim.voice; b.textContent = sim.voice ? '🔊' : '🔇';
+    if (!sim.voice && window.speechSynthesis) speechSynthesis.cancel();
+  }
   b.blur();
 }));
 
@@ -343,7 +348,7 @@ function frame() {
     }
     if (sim.timeScale > 4) {
       const agl = ac.pos.y - GEAR_H - terrainHeight(ac.pos.x, ac.pos.z);
-      if (agl < 3000 * 0.3048) { sim.timeScale = 4; toast('低高度：時間加速降為 x4'); }
+      if (agl < 3000 * 0.3048 && casual.stage !== 'takeoff') { sim.timeScale = 4; if (!sim.casual) toast('低高度：時間加速降為 x4'); }
     }
     if (ap.msg) { if (!sim.casual) toast(ap.msg); ap.msg = ''; }
   }

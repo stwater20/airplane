@@ -2,8 +2,10 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>TPE → NRT 飛行模擬</title>
+<meta name="theme-color" content="#0b1726">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="description" content="瀏覽器 3D 飛行模擬器：從臺灣桃園國際機場飛往東京成田國際機場。">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈️</text></svg>">
 <style>
@@ -58,7 +60,9 @@
   #cbar { display: none; position: fixed; left: 12px; bottom: 12px; gap: 8px; }
   body.casual #cbar { display: flex; }
   body.casual #fcu, body.casual #touch { display: none !important; }
-  body.casual #toast { top: 34%; }
+  body.casual #toast { top: auto; bottom: calc(100px + env(safe-area-inset-bottom)); font-size: 13px; padding: 6px 12px; }
+  #cbar { bottom: calc(12px + env(safe-area-inset-bottom)); }
+  html, body { overscroll-behavior: none; -webkit-touch-callout: none; }
   #cbar button { background: rgba(8,18,32,0.7); color: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-size: 15px; cursor: pointer; }
   #cbar .skip { display: none; background: #ffc83d; color: #1a1200; font-weight: bold; border: 0; }
   body[data-stage="cruise"] #cbar .skip { display: block; }

@@ -22,6 +22,23 @@ const STAGE_TEXT = {
 const CALLOUTS = [1000, 500, 100, 50, 30, 10];
 const CALLOUT_TEXT = { 1000: 'One thousand', 500: 'Five hundred', 100: 'One hundred', 50: 'Fifty', 40: 'Forty', 30: 'Thirty', 20: 'Twenty', 10: 'Ten' };
 
+const CS = 'Skyline one two three';
+const SPEAKER = {
+  tower: ['🗼 塔台 TOWER', '#7fd4ff'],
+  atc: ['📡 管制 ATC', '#7fd4ff'],
+  pilot: ['✈️ 機師（你）', '#ffc83d'],
+  crew: ['👨‍✈️ 副機師', '#b8f5c8'],
+  captain: ['🎙️ 機長廣播', '#ffffff'],
+  cabin: ['🎙️ 客艙廣播', '#ffffff'],
+  gpws: ['🔊 自動語音', '#ffb52e'],
+};
+const VOICE = {
+  tower: { voice: 0, rate: 1.15, pitch: 0.85 }, atc: { voice: 0, rate: 1.15, pitch: 0.85 },
+  pilot: { voice: 2, rate: 1.1, pitch: 1.05 }, crew: { voice: 2, rate: 1.05, pitch: 1.05 },
+  captain: { voice: 1, rate: 0.95, pitch: 1 }, cabin: { voice: 3, rate: 0.95, pitch: 1.1 },
+  gpws: { voice: 0, rate: 1.0, pitch: 0.7 },
+};
+
 export class Casual {
   constructor(scene, sim, toast) {
     this.scene = scene; this.sim = sim; this.toast = toast;
@@ -40,18 +57,21 @@ export class Casual {
     if (window.speechSynthesis) speechSynthesis.cancel();
   }
 
-  // 只講一次的廣播；radio = 無線電（較快、較低沉）
-  say(id, text, radio = false) {
+  // 只講一次的廣播。who：tower / atc / pilot / crew / captain / cabin / gpws
+  say(id, text, who = 'captain') {
     if (this.said.has(id)) return;
     this.said.add(id);
-    this.subtitle = text.replace('I L S', 'ILS'); this.subT = 6;
-    if (!this.sim.voice || !window.speechSynthesis) return;
-    const u = new SpeechSynthesisUtterance(text);
+    const show = () => { this.subtitle = text; this.speaker = who; this.subT = Math.max(5, text.length / 14); };
+    if (!this.sim.voice || !window.speechSynthesis) { show(); return; }
+    // 副機師的短呼叫若語音正忙就只顯示字幕，避免延遲到時機之後才唸
+    if (who === 'crew' && (speechSynthesis.speaking || speechSynthesis.pending)) { show(); return; }
+    const u = new SpeechSynthesisUtterance(text.replace(/ILS/g, 'I L S'));
     u.lang = 'en-US';
     const v = speechSynthesis.getVoices().filter((x) => x.lang.startsWith('en'));
-    if (v.length) u.voice = v[radio ? 0 : Math.min(1, v.length - 1)];
-    u.rate = radio ? 1.15 : 0.95;
-    u.pitch = radio ? 0.9 : 1;
+    const style = VOICE[who] || VOICE.captain;
+    if (v.length) u.voice = v[style.voice % v.length];
+    u.rate = style.rate; u.pitch = style.pitch;
+    u.onstart = show;   // 字幕跟著語音出現
     speechSynthesis.speak(u);
   }
 
@@ -72,18 +92,23 @@ export class Casual {
     if (ac.touchdown) {
       if (this.stage !== 'done') {
         this.setStage('done');
-        this.say('wel', 'Ladies and gentlemen, welcome to Tokyo Narita International Airport. Please remain seated with your seatbelt fastened until the captain turns off the seatbelt sign. Thank you for flying Skyline.');
+        this.say('gnd', `${CS}, welcome to Narita. Vacate at the next taxiway and contact Ground on one two one decimal eight five.`, 'tower');
+        this.say('gndrb', `Next taxiway, Ground one two one decimal eight five, ${CS}. Thank you.`, 'pilot');
+        const tokyo = new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Tokyo', hour: 'numeric', minute: '2-digit' });
+        this.say('wel', `Ladies and gentlemen, welcome to Tokyo Narita International Airport. The local time is ${tokyo}. Please remain seated with your seatbelt fastened until the captain turns off the seatbelt sign. Thank you for flying Skyline.`, 'cabin');
       }
       return;
     }
 
     if (this.stage === 'takeoff') {
-      this.say('clr', 'Skyline one two three, runway zero five right, wind calm, cleared for takeoff.', true);
+      this.say('wlc', 'Ladies and gentlemen, welcome aboard Skyline flight one two three to Tokyo Narita. Please fasten your seatbelt. Cabin crew, prepare for departure.', 'cabin');
+      this.say('clr', `${CS}, Taipei Tower, runway zero five right, wind calm, cleared for takeoff.`, 'tower');
+      this.say('clrrb', `Cleared for takeoff, runway zero five right, ${CS}.`, 'pilot');
       if (this.sim.timeScale < 3) this.sim.timeScale = 3;   // 縮短起飛時間
-      if (ias > 80) this.say('80', 'Eighty knots.');
-      if (ias > 135) this.say('v1', 'V one.');
-      if (ias > 145) this.say('vr', 'Rotate.');
-      if (!ac.onGround && ac.vel.y > 2) this.say('pos', 'Positive rate. Gear up.');
+      if (ias > 80) this.say('80', 'Eighty knots.', 'crew');
+      if (ias > 135) this.say('v1', 'V one.', 'crew');
+      if (ias > 145) this.say('vr', 'Rotate.', 'crew');
+      if (!ac.onGround && ac.vel.y > 2) this.say('pos', 'Positive rate. Gear up.', 'crew');
       ac.brakes = false; ac.spoilers = false;
       ac.throttle = Math.min(1, ac.throttle + dt * 0.4);
       ac.input.roll = clamp(-att.bank * 2, -1, 1); ac.input.yaw = 0;
@@ -94,7 +119,8 @@ export class Casual {
       if (agl > 90) {
         Object.assign(ap, { ap: true, athr: true, lat: 'NAV', vert: 'ALT', alt: 9000, spd: 250 });
         this.sim.timeScale = 1;
-        this.say('dep', 'Skyline one two three, Taipei Departure, radar contact. Climb and maintain flight level three five zero.', true);
+        this.say('dep', `${CS}, Taipei Departure, radar contact. Climb and maintain flight level three five zero.`, 'atc');
+        this.say('deprb', `Climb and maintain flight level three five zero, ${CS}.`, 'pilot');
         this.setStage('climb', '起飛成功！拖曳讓飛機穿過金色圓環');
       }
       return;
@@ -109,20 +135,30 @@ export class Casual {
         Object.assign(ap, { alt: 35000, spd: 290 });
         this.sim.timeScale = 64;
         this.setStage('cruise', '巡航中…可按「跳到降落」');
-        this.say('crz', 'Ladies and gentlemen, this is your captain speaking. We are climbing to our cruising altitude of thirty five thousand feet. Flight time to Tokyo Narita is about three hours. Sit back, relax, and enjoy the flight.');
+        this.say('belt', 'Ladies and gentlemen, the captain has turned off the seatbelt sign. You may now move about the cabin. We will shortly begin our meal service.', 'cabin');
+        this.say('crz', 'Ladies and gentlemen, this is your captain speaking. We are climbing to our cruising altitude of thirty five thousand feet. Flight time to Tokyo Narita is about three hours. Sit back, relax, and enjoy the flight.', 'captain');
       }
     } else if (this.stage === 'cruise') {
       ap.assistGain = 1;
       const dest = ap.route[ap.route.length - 1];
+      // 沿途觀光廣播（以通過的航路點判斷）
+      if (ap.wp >= 4) this.say('oki', 'Ladies and gentlemen, if you look out the left side of the aircraft, you can see the islands of Okinawa below us.', 'captain');
+      if (ap.wp >= 6) this.say('yak', 'On the left, you may see Yakushima island and the southern coast of Kyushu.', 'captain');
+      if (ap.wp >= 8) this.say('kii', 'We are now passing the Kii Peninsula. The city of Osaka is off to our left. About thirty minutes to landing.', 'captain');
       if (Math.hypot(dest.x - ac.pos.x, dest.z - ac.pos.z) < 70 * 1852) this.toApproach();
     } else if (this.stage === 'approach') {
       ap.assistGain = clamp((agl - 40) / 200, 0, 1);
       const il = ap.ilsData(ac);
       if (il.dist < 7 * 1852) ac.flaps = 4;
-      if (il.dist < 6 * 1852) this.say('land', 'Skyline one two three, Narita Tower, runway three four left, cleared to land.', true);
+      if (il.dist < 9 * 1852) this.say('fuji', 'Ladies and gentlemen, on a clear day you can see Mount Fuji out the left windows.', 'captain');
+      if (il.dist < 7.5 * 1852) this.say('ccl', 'Cabin crew, please take your seats for landing.', 'captain');
+      if (il.dist < 6 * 1852) {
+        this.say('land', `${CS}, Narita Tower, runway three four left, wind three four zero at eight knots, cleared to land.`, 'tower');
+        this.say('landrb', `Cleared to land, runway three four left, ${CS}.`, 'pilot');
+      }
       const raFt = agl / FT;
-      for (const c of CALLOUTS) if (raFt < c && this.prevRa >= c) this.say('ra' + c, CALLOUT_TEXT[c]);
-      if (raFt < 220 && this.prevRa >= 220) this.say('min', 'Minimums.');
+      for (const c of CALLOUTS) if (raFt < c && this.prevRa >= c) this.say('ra' + c, CALLOUT_TEXT[c], 'gpws');
+      if (raFt < 220 && this.prevRa >= 220) this.say('min', 'Minimums.', 'gpws');
       this.prevRa = raFt;
       this.rings();
     }
@@ -145,10 +181,13 @@ export class Casual {
     Object.assign(ap, { ap: true, athr: true, lat: 'LOC', vert: 'GS', appArmed: true, spd: 150, wp: ap.route.length - 1 });
     this.sim.timeScale = 1;
     this.sim.resetCam = true;
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    for (const k of ['oki', 'yak', 'kii', 'belt', 'crz']) this.said.add(k);
     this.prevRa = 99999;
     this.setStage('approach', '抵達成田！跟著圓環降落');
-    this.say('app', 'Skyline one two three, Narita Approach. Cleared I L S runway three four left approach.', true);
-    setTimeout(() => this.say('des', 'Ladies and gentlemen, we are on final approach into Tokyo Narita. Please make sure your seatbelt is securely fastened.'), 5500);
+    this.say('app', `${CS}, Narita Approach. Cleared ILS runway three four left approach.`, 'atc');
+    this.say('apprb', `Cleared ILS three four left, ${CS}.`, 'pilot');
+    this.say('des', 'Ladies and gentlemen, we are on final approach into Tokyo Narita. Please make sure your seatbelt is securely fastened.', 'captain');
   }
 
   rings() {
@@ -214,7 +253,7 @@ export class Casual {
     const { ac, ap } = this;
     g.setTransform(hud.dpr, 0, 0, hud.dpr, 0, 0);
     g.clearRect(0, 0, W, H);
-    const small = W < 600;
+    const small = W < 600, short = H < 500;
     const font = (px, w = 'bold') => `${w} ${px}px -apple-system, "PingFang TC", "Noto Sans TC", sans-serif`;
 
     // 圓環指示
@@ -240,7 +279,7 @@ export class Casual {
     }
 
     // 頂部資訊
-    const pad = 12, top = 12 + (small ? 0 : 0);
+    const pad = 12, top = 12 + safeTop();
     const box = (x, y, w, h) => { g.fillStyle = 'rgba(8,18,32,0.6)'; g.beginPath(); g.roundRect(x, y, w, h, 12); g.fill(); };
     box(pad, top, 132, 56);
     g.fillStyle = '#ffc83d'; g.font = font(22); g.textAlign = 'left';
@@ -280,20 +319,53 @@ export class Casual {
     // 操作提示
     if ((this.stage === 'climb' || this.stage === 'approach') && !stick.active && this.total <= 1) {
       g.font = font(15, 'normal'); g.fillStyle = 'rgba(255,255,255,0.9)';
-      g.fillText('👆 按住螢幕拖曳：左右轉彎、上下爬升／下降', W / 2, H - 120);
+      g.fillText(small ? '👆 按住拖曳操控' : '👆 按住螢幕拖曳：左右轉彎、上下爬升／下降', W / 2, H - (small ? 268 : 120) - safeBottom());
     }
 
-    // 英文廣播字幕
+    // 英文廣播字幕（標示說話者）
     if (this.subT > 0) {
       this.subT -= dt;
       g.globalAlpha = Math.min(1, this.subT);
+      const bwid = Math.min(W - 24, 580);
       g.font = font(small ? 13 : 15, 'normal');
-      const lines = wrap(g, `🎙️ ${this.subtitle}`, Math.min(W - 40, 560));
-      const lh = small ? 18 : 21, bh = lines.length * lh + 14, by = small ? 128 : 58;
-      g.fillStyle = 'rgba(0,0,0,0.55)'; g.beginPath(); g.roundRect(W / 2 - Math.min(W - 24, 580) / 2, by, Math.min(W - 24, 580), bh, 10); g.fill();
-      g.fillStyle = '#fff'; g.textAlign = 'center';
-      lines.forEach((l, i) => g.fillText(l, W / 2, by + 7 + lh * (i + 0.75)));
+      const lines = wrap(g, this.subtitle, bwid - 24);
+      const lh = small ? 18 : 21, bh = lines.length * lh + 34;
+      const by = top + (small ? 116 : short ? 64 : 46);
+      g.fillStyle = 'rgba(0,0,0,0.6)'; g.beginPath(); g.roundRect(W / 2 - bwid / 2, by, bwid, bh, 10); g.fill();
+      const [name, col] = SPEAKER[this.speaker] || SPEAKER.captain;
+      g.fillStyle = col; g.font = font(12); g.textAlign = 'left';
+      g.fillText(name, W / 2 - bwid / 2 + 12, by + 18);
+      g.fillStyle = '#fff'; g.font = font(small ? 13 : 15, 'normal'); g.textAlign = 'center';
+      lines.forEach((l, i) => g.fillText(l, W / 2, by + 26 + lh * (i + 0.75)));
       g.globalAlpha = 1;
+    }
+
+    // 航程進度條（直式手機沒有地圖時特別有用）
+    {
+      const r0 = ap.route[0], r1 = ap.route[ap.route.length - 1];
+      const total = Math.hypot(r1.x - r0.x, r1.z - r0.z);
+      const left = Math.hypot(r1.x - ac.pos.x, r1.z - ac.pos.z);
+      const f = clamp(1 - left / total, 0, 1);
+      const wide = W >= 600 && !short;
+      const bw = wide ? Math.min(360, W - 520) : short ? Math.min(320, W - 380) : W - 2 * pad - 20;
+      const bx = wide ? (W - bw) / 2 : short ? W - bw - pad - 10 : pad + 10, byy = short ? H - 30 - safeBottom() : H - 70 - safeBottom() - (W >= 600 ? 0 : 10);
+      if (bw > 120) {
+        g.fillStyle = 'rgba(8,18,32,0.6)'; g.beginPath(); g.roundRect(bx - 10, byy - 18, bw + 20, 30, 10); g.fill();
+        g.font = font(11); g.fillStyle = '#9fb3c8'; g.textAlign = 'left'; g.fillText('TPE', bx, byy + 1);
+        g.textAlign = 'right'; g.fillText(`NRT ${Math.round(left / 1000)} km`, bx + bw, byy + 1);
+        const x0 = bx + 44, x1 = bx + bw - 84;
+        g.strokeStyle = 'rgba(255,255,255,0.25)'; g.lineWidth = 3; g.beginPath(); g.moveTo(x0, byy - 3); g.lineTo(x1, byy - 3); g.stroke();
+        g.strokeStyle = '#4fe3ff'; g.beginPath(); g.moveTo(x0, byy - 3); g.lineTo(x0 + (x1 - x0) * f, byy - 3); g.stroke();
+        g.font = font(14, 'normal'); g.textAlign = 'center'; g.fillText('✈️', x0 + (x1 - x0) * f, byy + 2);
+      }
+    }
+
+    // 搖桿位置提示（未觸控時）
+    if (!stick.active && (this.stage === 'climb' || this.stage === 'approach') && W < 600) {
+      const gx = W / 2, gy = H - 205 - safeBottom();
+      g.strokeStyle = 'rgba(255,255,255,0.22)'; g.lineWidth = 2;
+      g.beginPath(); g.arc(gx, gy, 46, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = 'rgba(255,255,255,0.15)'; g.beginPath(); g.arc(gx, gy, 18, 0, Math.PI * 2); g.fill();
     }
 
     // 虛擬搖桿
@@ -305,7 +377,7 @@ export class Casual {
       g.beginPath(); g.arc(stick.ox + dx, stick.oy + dy, 26, 0, Math.PI * 2); g.fill();
     }
 
-    if (W >= 600) hud.map(g, ac, ap, 1);
+    if (W >= 600 && !short) hud.map(g, ac, ap, 1);
   }
 }
 
@@ -318,3 +390,10 @@ function wrap(g, text, maxW) {
   if (line) out.push(line);
   return out;
 }
+
+// 讀取瀏覽器安全區域（瀏海、Home 指示條）
+const probe = document.createElement('div');
+probe.style.cssText = 'position:fixed;top:0;left:0;height:0;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);visibility:hidden;pointer-events:none';
+document.body.appendChild(probe);
+function safeTop() { return parseFloat(getComputedStyle(probe).paddingTop) || 0; }
+function safeBottom() { return parseFloat(getComputedStyle(probe).paddingBottom) || 0; }

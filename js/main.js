@@ -289,11 +289,12 @@ function updateCamera(dt) {
     const hdgFwd = new THREE.Vector3(fwd.x, 0, fwd.z).normalize();
     const desired = ac.pos.clone().addScaledVector(hdgFwd, -orbit.dist).add(new THREE.Vector3(0, orbit.dist * 0.18 + 3, 0));
     if (!camInit || sim.resetCam || smoothCam.distanceTo(desired) > 800) { smoothCam.copy(desired); camInit = true; sim.resetCam = false; }
-    smoothCam.lerp(desired, Math.min(1, dt * 4));
+    smoothCam.lerp(desired, Math.min(1, dt * 4 * Math.max(1, sim.timeScale)));
     camera.position.copy(smoothCam);
     camera.up.set(0, 1, 0);
     // 視線略往下，讓飛機位於畫面中上方、不被下方儀表遮住
-    camera.lookAt(camTarget.copy(ac.pos).addScaledVector(hdgFwd, orbit.dist * 0.85).add(new THREE.Vector3(0, -orbit.dist * (sim.casual ? 0.12 : 0.36), 0)));
+    camera.lookAt(camTarget.copy(ac.pos).addScaledVector(hdgFwd, orbit.dist * 0.85).add(new THREE.Vector3(0, -orbit.dist * (!sim.casual ? 0.36 : camera.aspect < 1 ? -0.05 : 0.12), 0)));
+    // 直式手機：視線抬高，飛機在畫面下方、前方空間較多
   } else if (mode === 1) {
     camera.position.copy(ac.pos.clone().add(new THREE.Vector3(0, 1.6, -17.5).applyQuaternion(ac.quat)));
     camera.quaternion.copy(ac.quat).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -0.08));

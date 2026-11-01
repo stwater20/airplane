@@ -1,12 +1,13 @@
 import * as THREE from 'three';
-import { buildWorld, runways, terrainHeight } from './world.js?v=20261101183315';
-import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261101183315';
-import { Autopilot } from './autopilot.js?v=20261101183315';
-import { HUD } from './hud.js?v=20261101183315';
-import { Casual } from './casual.js?v=20261101183315';
-import { GameAudio } from './audio.js?v=20261101183315';
-import { SpeedFX } from './effects.js?v=20261101183315';
-import { Traffic } from './traffic.js?v=20261101183315';
+import { buildWorld, runways, terrainHeight } from './world.js?v=20261101183653';
+import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261101183653';
+import { Autopilot } from './autopilot.js?v=20261101183653';
+import { HUD } from './hud.js?v=20261101183653';
+import { Casual } from './casual.js?v=20261101183653';
+import { GameAudio } from './audio.js?v=20261101183653';
+import { SpeedFX } from './effects.js?v=20261101183653';
+import { Taoyuan } from './taoyuan.js?v=20261101183653';
+import { Traffic } from './traffic.js?v=20261101183653';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
@@ -19,6 +20,7 @@ const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.5, 2.
 const { sun, sky } = buildWorld(scene);
 
 const traffic = new Traffic(scene);
+const taoyuan = new Taoyuan(scene);
 const fx = new SpeedFX(scene);
 const ac = new Aircraft();
 scene.add(ac.mesh);
@@ -29,7 +31,7 @@ const startRunway = runways.find((r) => r.airport === 'TPE' && r.id.startsWith('
 ac.placeOnRunway(startRunway, -1);
 ap.hdg = startRunway.heading;
 
-const sim = { ac, ap, camera, timeScale: 1, paused: true, camMode: 0, started: false, casual: true, voice: true, tilt: false };
+const sim = { ac, ap, camera, taoyuan, timeScale: 1, paused: true, camMode: 0, started: false, casual: true, voice: true, tilt: false };
 sim.audio = new GameAudio();
 sim.runways = runways;
 window.__sim = sim;
@@ -434,6 +436,7 @@ function frame() {
     if (ap.msg) { if (!sim.casual) toast(ap.msg); ap.msg = ''; }
   }
   if (ac.crashed || ac.landed) showResult();
+  if (!sim.paused) taoyuan.update(Math.min(0.1, dt * (sim.started ? Math.min(sim.timeScale, 4) : 1)), !sim.started || (sim.casual && ['briefing', 'takeoff'].includes(casual.stage)) || (!sim.casual && ac.onGround && !ac.touchdown));
   if (!sim.paused) traffic.update(Math.min(1, dt * (sim.started ? sim.timeScale : 1)));
   ac.syncMesh();
   updateCamera(dt);

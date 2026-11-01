@@ -1,7 +1,7 @@
 // 輕鬆模式：自動起飛／巡航／降落，玩家只需拖曳讓飛機穿過金色圓環
 import * as THREE from 'three';
-import { RUNWAY_Y } from './world.js?v=20261101183315';
-import { GEAR_H } from './aircraft.js?v=20261101183315';
+import { RUNWAY_Y } from './world.js?v=20261101183653';
+import { GEAR_H } from './aircraft.js?v=20261101183653';
 
 const D2R = Math.PI / 180, KT = 0.514444, FT = 0.3048;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -326,7 +326,7 @@ export class Casual {
   resolve(hit) {
     this.scene.remove(this.ring.mesh);
     this.ring = null;
-    if (hit) { this.hits++; this.score += 100; this.flashText = '+100'; navigator.vibrate?.(40); this.sim.audio?.ding(); }
+    if (hit) { this.hits++; this.score += 100; this.flashText = '+100'; try { navigator.vibrate?.(40); } catch {} this.sim.audio?.ding(); }
     else this.flashText = '錯過';
     this.flash = 1;
   }

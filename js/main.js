@@ -3,9 +3,10 @@ import { buildWorld, runways, terrainHeight } from './world.js';
 import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js';
 import { Autopilot } from './autopilot.js';
 import { HUD } from './hud.js';
+import { Casual } from './casual.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.getElementById('view').appendChild(renderer.domElement);
@@ -23,28 +24,50 @@ const startRunway = runways.find((r) => r.airport === 'TPE' && r.id.startsWith('
 ac.placeOnRunway(startRunway, -1);
 ap.hdg = startRunway.heading;
 
-const sim = { ac, ap, camera, timeScale: 1, paused: true, camMode: 0, started: false };
+const sim = { ac, ap, camera, timeScale: 1, paused: true, camMode: 0, started: false, casual: true };
 window.__sim = sim;
+const casual = new Casual(scene, sim, (m) => toast(m));
+sim.casualGame = casual;
 const SCALES = [1, 2, 4, 8, 16, 32, 64];
 const CAM_NAMES = ['追蹤視角', '駕駛艙', '自由環繞', '塔台／地面'];
 
 // ───── 輸入 ─────
 const keys = new Set();
+const tapped = new Set();   // 本幀內按過的鍵（快速點按也能生效）
+// 以實體按鍵位置判斷，避免中文輸入法影響 e.key
+function keyName(e) {
+  const c = e.code || '';
+  if (c.startsWith('Key')) return c.slice(3).toLowerCase();
+  if (c.startsWith('Arrow')) return c.toLowerCase();
+  if (c === 'Space') return ' ';
+  if (c.startsWith('Shift')) return 'shift';
+  if (c.startsWith('Control')) return 'control';
+  if (c === 'Enter' || c === 'NumpadEnter') return 'enter';
+  if (c === 'Escape') return 'escape';
+  return (e.key || '').toLowerCase();
+}
 addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
-  const k = e.key.toLowerCase();
+  const k = keyName(e);
   if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'pageup', 'pagedown'].includes(k)) e.preventDefault();
   if (e.repeat) { keys.add(k); return; }
-  keys.add(k);
-  if (!sim.started && (k === 'enter' || k === ' ')) { startGame(); return; }
+  keys.add(k); tapped.add(k);
+  if (!sim.started && (k === 'enter' || k === ' ')) { startGame(true); return; }
   if ((ac.crashed || ac.landed) && k === 'enter') { restart(); return; }
+  if (sim.casual) {
+    if (k === 'c') cycleCam();
+    if (k === 'p' || k === 'escape') sim.paused = !sim.paused;
+    return;
+  }
   switch (k) {
+    case 'r': case 'shift': ac.throttle = Math.min(1, ac.throttle + 0.05); break;
+    case 'f': case 'control': ac.throttle = Math.max(0, ac.throttle - 0.05); break;
     case 'g': ac.gearDown = !ac.gearDown; toast(`起落架 ${ac.gearDown ? '放下' : '收起'}`); break;
     case 'z': ac.flaps = Math.max(0, ac.flaps - 1); toast(`襟翼 ${FLAP_NAMES[ac.flaps]}`); break;
     case 'x': ac.flaps = Math.min(4, ac.flaps + 1); toast(`襟翼 ${FLAP_NAMES[ac.flaps]}`); break;
     case 'b': ac.brakes = !ac.brakes; break;
     case 'h': ac.spoilers = !ac.spoilers; toast(`減速板 ${ac.spoilers ? '展開' : '收回'}`); break;
-    case 'c': sim.camMode = (sim.camMode + 1) % 4; toast(CAM_NAMES[sim.camMode]); break;
+    case 'c': cycleCam(); break;
     case 'p': sim.paused = !sim.paused; break;
     case 't': setScale(1); break;
     case 'y': setScale(-1); break;
@@ -56,7 +79,13 @@ addEventListener('keydown', (e) => {
     case 'escape': if (sim.started) sim.paused = !sim.paused; break;
   }
 });
-addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
+addEventListener('keyup', (e) => keys.delete(keyName(e)));
+
+function cycleCam() {
+  const order = sim.casual ? [0, 1, 3] : [0, 1, 2, 3];
+  sim.camMode = order[(order.indexOf(sim.camMode) + 1) % order.length];
+  toast(CAM_NAMES[sim.camMode]);
+}
 addEventListener('blur', () => keys.clear());
 
 function setScale(dir) {
@@ -70,9 +99,22 @@ function setScale(dir) {
 // 滑鼠環繞
 let orbit = { yaw: Math.PI, pitch: 0.15, dist: 70, drag: false, lx: 0, ly: 0 };
 const view = renderer.domElement;
-view.addEventListener('pointerdown', (e) => { orbit.drag = true; orbit.lx = e.clientX; orbit.ly = e.clientY; });
-addEventListener('pointerup', () => { orbit.drag = false; });
+// 輕鬆模式：在畫面任意處按住拖曳＝虛擬搖桿
+const drag = { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0 };
+view.style.touchAction = 'none';
+view.addEventListener('pointerdown', (e) => {
+  if (sim.casual) {
+    Object.assign(drag, { active: true, id: e.pointerId, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY });
+    view.setPointerCapture(e.pointerId);
+    return;
+  }
+  orbit.drag = true; orbit.lx = e.clientX; orbit.ly = e.clientY;
+});
+const endDrag = (e) => { if (e.pointerId === drag.id) drag.active = false; orbit.drag = false; };
+addEventListener('pointerup', endDrag);
+addEventListener('pointercancel', endDrag);
 addEventListener('pointermove', (e) => {
+  if (drag.active && e.pointerId === drag.id) { drag.x = e.clientX; drag.y = e.clientY; return; }
   if (!orbit.drag) return;
   orbit.yaw -= (e.clientX - orbit.lx) * 0.006;
   orbit.pitch = Math.max(-1.4, Math.min(1.4, orbit.pitch + (e.clientY - orbit.ly) * 0.006));
@@ -133,18 +175,32 @@ function toast(msg) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
 }
 
-function startGame() {
+function startGame(easy) {
+  sim.casual = easy;
+  document.body.classList.toggle('casual', easy);
+  document.body.classList.toggle('pro', !easy);
   sim.started = true;
   sim.paused = false;
   document.getElementById('menu').classList.add('hidden');
-  toast('油門 R 推到 100%，速度 150 kt 時按 S/↓ 拉起');
+  if (easy) { casual.reset(); casual.setStage('takeoff', '自動起飛中…離地後拖曳畫面操控！'); } else toast('油門 R 推到 100%，速度 150 kt 時按 S/↓ 拉起');
 }
-document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('startBtn').addEventListener('click', () => startGame(true));
+document.getElementById('proBtn').addEventListener('click', () => startGame(false));
+document.querySelectorAll('[data-c]').forEach((b) => b.addEventListener('click', () => {
+  const c = b.dataset.c;
+  if (c === 'cam') cycleCam();
+  if (c === 'skip' && casual.stage === 'cruise') casual.toApproach();
+  if (c === 'pause') { sim.paused = !sim.paused; b.textContent = sim.paused ? '▶' : '⏸'; }
+  if (c === 'menu') location.reload();
+  b.blur();
+}));
 
 function restart() {
   ac.placeOnRunway(startRunway, -1);
-  Object.assign(ap, { ap: false, athr: false, lat: 'HDG', vert: 'ALT', appArmed: false, wp: 1, hdg: startRunway.heading });
+  Object.assign(ap, { ap: false, athr: false, lat: 'HDG', vert: 'ALT', appArmed: false, wp: 1, hdg: startRunway.heading, assistGain: 0 });
   sim.timeScale = 1;
+  sim.resetCam = true;
+  if (sim.casual) { casual.reset(); casual.setStage('takeoff', '自動起飛中…'); }
   document.getElementById('result').classList.add('hidden');
   shownResult = false;
 }
@@ -157,7 +213,12 @@ function showResult() {
   sim.timeScale = 1;
   const el = document.getElementById('result');
   const title = el.querySelector('h2'), body = el.querySelector('p');
-  if (ac.crashed) {
+  if (sim.casual && !ac.crashed) {
+    const vs = Math.round(ac.landed.vs);
+    const [bonus, grade] = casual.landingBonus(vs);
+    title.textContent = '🛬 歡迎來到東京成田！';
+    body.innerHTML = `${grade}<br>圓環 ${casual.hits} / ${casual.total}（+${casual.score}）・ 落地 +${bonus}<br><b style="font-size:26px;color:#ffc83d">⭐ ${casual.score + bonus} 分</b>`;
+  } else if (ac.crashed) {
     title.textContent = '💥 墜機';
     body.textContent = ac.crashReason;
   } else {
@@ -180,7 +241,20 @@ const smoothCam = new THREE.Vector3();
 let camInit = false;
 
 function readControls(dt) {
-  const k = (...ks) => ks.some((x) => keys.has(x));
+  const k = (...ks) => ks.some((x) => keys.has(x) || tapped.has(x));
+  if (sim.casual) {
+    let x = (k('d', 'arrowright') ? 1 : 0) - (k('a', 'arrowleft') ? 1 : 0);
+    let y = (k('w', 'arrowup') ? 1 : 0) - (k('s', 'arrowdown') ? 1 : 0);
+    if (drag.active) {
+      x += Math.max(-1, Math.min(1, (drag.x - drag.ox) / 70));
+      y += Math.max(-1, Math.min(1, -(drag.y - drag.oy) / 70));   // 往上拖＝爬升
+    }
+    const sm = (cur, tgt) => cur + (Math.max(-1, Math.min(1, tgt)) - cur) * Math.min(1, dt * 6);
+    ap.assist.x = sm(ap.assist.x, x);
+    ap.assist.y = sm(ap.assist.y, y);
+    tapped.clear();
+    return;
+  }
   const axis = (neg, pos) => (k(...pos) ? 1 : 0) - (k(...neg) ? 1 : 0);
   // S/↓ = 拉桿（機頭上），W/↑ = 推桿
   const pitch = axis(['w', 'arrowup'], ['s', 'arrowdown']) + touch.pitch;  // 搖桿往下拖 = 拉桿
@@ -197,6 +271,7 @@ function readControls(dt) {
   if (k('r', 'shift')) { ac.throttle = Math.min(1, ac.throttle + dt * 0.5); if (ap.athr) { ap.athr = false; toast('自動油門斷開'); } }
   if (k('f', 'control')) { ac.throttle = Math.max(0, ac.throttle - dt * 0.5); if (ap.athr) { ap.athr = false; toast('自動油門斷開'); } }
   ac.brakesHeld = k(' ');
+  tapped.clear();
 }
 
 function updateCamera(dt) {
@@ -208,12 +283,12 @@ function updateCamera(dt) {
     // 追蹤：位於飛機後上方，平滑跟隨航向
     const hdgFwd = new THREE.Vector3(fwd.x, 0, fwd.z).normalize();
     const desired = ac.pos.clone().addScaledVector(hdgFwd, -orbit.dist).add(new THREE.Vector3(0, orbit.dist * 0.18 + 3, 0));
-    if (!camInit || smoothCam.distanceTo(desired) > 800) { smoothCam.copy(desired); camInit = true; }
+    if (!camInit || sim.resetCam || smoothCam.distanceTo(desired) > 800) { smoothCam.copy(desired); camInit = true; sim.resetCam = false; }
     smoothCam.lerp(desired, Math.min(1, dt * 4));
     camera.position.copy(smoothCam);
     camera.up.set(0, 1, 0);
     // 視線略往下，讓飛機位於畫面中上方、不被下方儀表遮住
-    camera.lookAt(camTarget.copy(ac.pos).addScaledVector(hdgFwd, orbit.dist * 0.85).add(new THREE.Vector3(0, -orbit.dist * 0.36, 0)));
+    camera.lookAt(camTarget.copy(ac.pos).addScaledVector(hdgFwd, orbit.dist * 0.85).add(new THREE.Vector3(0, -orbit.dist * (sim.casual ? 0.12 : 0.36), 0)));
   } else if (mode === 1) {
     camera.position.copy(ac.pos.clone().add(new THREE.Vector3(0, 1.6, -17.5).applyQuaternion(ac.quat)));
     camera.quaternion.copy(ac.quat).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -0.08));
@@ -239,7 +314,8 @@ function updateCamera(dt) {
     camera.lookAt(ac.pos);
     camera.fov = THREE.MathUtils.clamp(65 * 300 / Math.max(300, camera.position.distanceTo(ac.pos)), 5, 65);
   }
-  if (mode !== 3 && camera.fov !== 65) camera.fov = 65;
+  const baseFov = camera.aspect < 1 ? 80 : 65;   // 直式手機視野放寬
+  if (mode !== 3) camera.fov = baseFov;
   camera.updateProjectionMatrix();
   // 防止鏡頭鑽入地面
   camera.position.y = Math.max(camera.position.y, 1.5);
@@ -256,6 +332,7 @@ function frame() {
     acc += dt * sim.timeScale;
     let n = 0;
     while (acc >= FIXED && n < 400) {
+      if (sim.casual) casual.step(FIXED);
       ap.update(ac, FIXED);
       const br = ac.brakes;
       if (ac.brakesHeld) ac.brakes = true;
@@ -268,14 +345,14 @@ function frame() {
       const agl = ac.pos.y - GEAR_H - terrainHeight(ac.pos.x, ac.pos.z);
       if (agl < 3000 * 0.3048) { sim.timeScale = 4; toast('低高度：時間加速降為 x4'); }
     }
-    if (ap.msg) { toast(ap.msg); ap.msg = ''; }
+    if (ap.msg) { if (!sim.casual) toast(ap.msg); ap.msg = ''; }
   }
   if (ac.crashed || ac.landed) showResult();
   ac.syncMesh();
   updateCamera(dt);
   renderer.render(scene, camera);
-  hud.draw(ac, ap, sim);
-  updatePanel();
+  if (sim.casual) casual.drawHUD(hud, camera, drag, dt);
+  else { hud.draw(ac, ap, sim); updatePanel(); }
 }
 
 addEventListener('resize', () => {

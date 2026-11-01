@@ -24,7 +24,7 @@
   #fcu .modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 2px; }
   #fcu .modes button.on { color: #071; background: var(--on); border-color: var(--on); font-weight: bold; }
 
-  #toast { position: fixed; top: 70px; left: 50%; transform: translate(-50%, -10px); background: var(--panel); padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line);
+  #toast { position: fixed; top: 120px; left: 50%; transform: translate(-50%, -10px); background: var(--panel); padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line);
     opacity: 0; transition: .25s; pointer-events: none; font-size: 14px; white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
   #toast.show { opacity: 1; transform: translate(-50%, 0); }
 
@@ -43,9 +43,29 @@
   #result .card { text-align: center; max-width: 440px; }
   #result p { line-height: 1.7; }
 
+  .lead { font-size: 16px; line-height: 1.6; margin: 10px 0 14px; }
+  .howto { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .howto div { background: rgba(255,255,255,0.06); border-radius: 10px; padding: 10px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .howto span { font-size: 22px; }
+  #startBtn { width: 100%; font-size: 20px; padding: 16px; }
+  .kbhint { text-align: center; color: #9fb3c8; font-size: 12px; margin: 8px 0 0; }
+  details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+  summary { cursor: pointer; color: #9fb3c8; font-size: 14px; }
+  details ol { margin-top: 10px; }
+  details .keys { margin-top: 10px; }
+  .big.pro { background: #1b2a3d; color: var(--txt); border: 1px solid var(--line); font-size: 15px; padding: 10px 20px; }
+  .link { background: none; border: 0; color: #9fb3c8; margin-top: 12px; font-size: 14px; cursor: pointer; text-decoration: underline; }
+  #cbar { display: none; position: fixed; left: 12px; bottom: 12px; gap: 8px; }
+  body.casual #cbar { display: flex; }
+  body.casual #fcu, body.casual #touch { display: none !important; }
+  #cbar button { background: rgba(8,18,32,0.7); color: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-size: 15px; cursor: pointer; }
+  #cbar .skip { display: none; background: #ffc83d; color: #1a1200; font-weight: bold; border: 0; }
+  body[data-stage="cruise"] #cbar .skip { display: block; }
+  #fcu { display: none; }
+  body.pro #fcu { display: grid; }
   #touch { display: none; }
   @media (pointer: coarse) {
-    #touch { display: block; }
+    body.pro #touch { display: block; }
     #stick { position: fixed; left: 24px; bottom: 150px; width: 130px; height: 130px; border-radius: 50%; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.25); touch-action: none; }
     #stick .knob { position: absolute; left: 40px; top: 40px; width: 50px; height: 50px; border-radius: 50%; background: rgba(79,227,255,0.55); pointer-events: none; }
     #tbtns { position: fixed; right: 12px; bottom: 290px; display: grid; grid-template-columns: repeat(3, 52px); gap: 6px; }
@@ -90,44 +110,49 @@
 
 <div id="menu" class="overlay">
   <div class="card">
-    <h1>✈️ 桃園 → 成田<small>瀏覽器飛行模擬器</small></h1>
-    <div class="route">RCTP 05R ─ ABBEY ─ SALMI ─ OKINA ─ AMAMI ─ YAKSM ─ MUROT ─ KUSHI ─ IZUOS ─ BOSO ─ ILS 34L RJAA ・ 約 1,180 NM</div>
-
-    <h3>飛行步驟</h3>
-    <ol>
-      <li>按住 <kbd>R</kbd> 將油門推至 100%，在跑道上加速。</li>
-      <li>速度約 <b>150 kt</b> 時按住 <kbd>S</kbd>/<kbd>↓</kbd> 抬頭至約 10°，離地後按 <kbd>G</kbd> 收起落架、<kbd>Z</kbd> 收襟翼。</li>
-      <li>高度 400 ft 以上按 <kbd>K</kbd> 接通自動駕駛、<kbd>U</kbd> 自動油門、<kbd>N</kbd> 航路導航，飛機會沿航路爬升至 FL350。</li>
-      <li>巡航時按 <kbd>T</kbd> 時間加速（最高 x64）。接近房總半島前把 ALT 降至 3000 ft、SPD 降至 180 kt。</li>
-      <li>按 <kbd>L</kbd> 待命 ILS 進場，放下襟翼 <kbd>X</kbd> 與起落架 <kbd>G</kbd>，飛機會自動截獲 34L 並自動降落。也可以手動飛！</li>
-    </ol>
-
-    <h3>操作</h3>
-    <div class="keys">
-      <div><span>俯仰（推／拉）</span><span><kbd>W</kbd><kbd>S</kbd> / <kbd>↑</kbd><kbd>↓</kbd></span></div>
-      <div><span>滾轉</span><span><kbd>A</kbd><kbd>D</kbd> / <kbd>←</kbd><kbd>→</kbd></span></div>
-      <div><span>方向舵／前輪轉向</span><span><kbd>Q</kbd><kbd>E</kbd></span></div>
-      <div><span>油門 + / −</span><span><kbd>R</kbd><kbd>F</kbd> (Shift/Ctrl)</span></div>
-      <div><span>襟翼 收 / 放</span><span><kbd>Z</kbd><kbd>X</kbd></span></div>
-      <div><span>起落架</span><span><kbd>G</kbd></span></div>
-      <div><span>煞車（按住／切換）</span><span><kbd>Space</kbd> / <kbd>B</kbd></span></div>
-      <div><span>減速板</span><span><kbd>H</kbd></span></div>
-      <div><span>自動駕駛／自動油門</span><span><kbd>K</kbd> / <kbd>U</kbd></span></div>
-      <div><span>航路導航／ILS 進場</span><span><kbd>N</kbd> / <kbd>L</kbd></span></div>
-      <div><span>時間加速 + / −</span><span><kbd>T</kbd><kbd>Y</kbd></span></div>
-      <div><span>視角／地圖縮放</span><span><kbd>C</kbd> / <kbd>M</kbd></span></div>
-      <div><span>暫停</span><span><kbd>P</kbd> / <kbd>Esc</kbd></span></div>
-      <div><span>環繞視角</span><span>滑鼠拖曳＋滾輪</span></div>
+    <h1>✈️ 飛向東京<small>桃園 → 成田</small></h1>
+    <p class="lead">自動起飛、自動降落，你只要用手指控制方向，讓飛機穿過 <b style="color:#ffc83d">金色圓環</b> 拿分數！</p>
+    <div class="howto">
+      <div><span>👆</span>按住螢幕任意處拖曳</div>
+      <div><span>↔️</span>左右拖＝轉彎</div>
+      <div><span>↕️</span>上下拖＝爬升／下降</div>
+      <div><span>⭕</span>穿過圓環 +100 分</div>
     </div>
-    <button class="big" id="startBtn">開始飛行（Enter）</button>
+    <button class="big" id="startBtn">▶ 開始遊戲</button>
+    <p class="kbhint">電腦也可以用方向鍵 ↑↓←→ 操控</p>
+    <details>
+      <summary>專業模式（鍵盤、全手動，很難）</summary>
+      <ol>
+        <li>按住 <kbd>R</kbd> 將油門推至 100%，約 <b>150 kt</b> 時按住 <kbd>S</kbd>/<kbd>↓</kbd> 抬頭。</li>
+        <li>離地後 <kbd>G</kbd> 收起落架、<kbd>Z</kbd> 收襟翼；400 ft 以上按 <kbd>K</kbd> <kbd>U</kbd> <kbd>N</kbd> 接通自動駕駛。</li>
+        <li><kbd>T</kbd> 時間加速；接近房總半島時 ALT 設 3000、SPD 180，按 <kbd>L</kbd> 截獲 ILS 自動降落。</li>
+      </ol>
+      <div class="keys">
+        <div><span>俯仰／滾轉</span><span><kbd>W</kbd><kbd>S</kbd><kbd>A</kbd><kbd>D</kbd></span></div>
+        <div><span>油門 + / −</span><span><kbd>R</kbd><kbd>F</kbd></span></div>
+        <div><span>襟翼／起落架</span><span><kbd>Z</kbd><kbd>X</kbd> / <kbd>G</kbd></span></div>
+        <div><span>煞車／減速板</span><span><kbd>Space</kbd> / <kbd>H</kbd></span></div>
+        <div><span>自動駕駛／油門</span><span><kbd>K</kbd> / <kbd>U</kbd></span></div>
+        <div><span>導航／ILS</span><span><kbd>N</kbd> / <kbd>L</kbd></span></div>
+        <div><span>時間加速</span><span><kbd>T</kbd><kbd>Y</kbd></span></div>
+        <div><span>視角／地圖／暫停</span><span><kbd>C</kbd> <kbd>M</kbd> <kbd>P</kbd></span></div>
+      </div>
+      <button class="big pro" id="proBtn">開始專業模式</button>
+    </details>
   </div>
+</div>
+
+<div id="cbar">
+  <button data-c="pause" aria-label="暫停">⏸</button>
+  <button data-c="cam">🎥 視角</button>
+  <button data-c="skip" class="skip">⏩ 跳到降落</button>
 </div>
 
 <div id="result" class="overlay hidden">
   <div class="card">
     <h2></h2>
     <p></p>
-    <button class="big" id="againBtn">再飛一次（Enter）</button>
+    <button class="big" id="againBtn">再飛一次</button><br><button class="link" data-c="menu">回主選單</button>
   </div>
 </div>
 

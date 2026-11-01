@@ -276,7 +276,8 @@ export function buildWorld(scene) {
   // 雲（Instanced billboard）
   const a = toWorld(119, 22), b = toWorld(143, 38);
   const puffList = [];
-  for (let i = 0; i < 900; i++) {
+  const cloudCount = matchMedia('(pointer: coarse)').matches ? 450 : 900;
+  for (let i = 0; i < cloudCount; i++) {
     const cx = a.x + Math.random() * (b.x - a.x);
     const cz = b.z + Math.random() * (a.z - b.z);
     const cyY = 1500 + Math.random() * 2500;

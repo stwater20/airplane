@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RUNWAY_Y, terrainHeight, runwayAt } from './world.js?v=20261101182518';
+import { RUNWAY_Y, terrainHeight, runwayAt } from './world.js?v=20261101183315';
 
 // 單位：SI。機身座標：-Z 前、+Y 上、+X 右
 const G = 9.81;
@@ -137,6 +137,7 @@ export class Aircraft {
     // 給 HUD / 自動駕駛
     this.alpha = 0; this.beta = 0; this.ias = 0; this.tas = 0; this.mach = 0; this.gLoad = 1;
     this.stall = false; this.CL = 0.5; this.CLmax = 1.5;
+    this.rollRateMax = 0.26;   // 最大滾轉率（rad/s）；輕鬆模式會調高
   }
 
   placeOnRunway(rw, fromEnd = -1) {
@@ -245,7 +246,7 @@ export class Aircraft {
         target.x = pathRate + 2.0 * (aReq - alpha);
       }
       // 滾轉：桿量 = 滾轉率；放開則保持坡度，超過 33° 自動回正
-      let rollRate = inp.roll * 0.26;
+      let rollRate = inp.roll * this.rollRateMax;
       if (Math.abs(inp.roll) < 0.05 && Math.abs(att.bank) > 0.576) rollRate = -Math.sign(att.bank) * 0.08;
       if (Math.abs(att.bank) > 1.15 && Math.sign(inp.roll) === Math.sign(att.bank)) rollRate = 0;
       target.z = -rollRate;

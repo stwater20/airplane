@@ -1,11 +1,12 @@
 import * as THREE from 'three';
-import { buildWorld, runways, terrainHeight } from './world.js?v=20261101182518';
-import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261101182518';
-import { Autopilot } from './autopilot.js?v=20261101182518';
-import { HUD } from './hud.js?v=20261101182518';
-import { Casual } from './casual.js?v=20261101182518';
-import { GameAudio } from './audio.js?v=20261101182518';
-import { Traffic } from './traffic.js?v=20261101182518';
+import { buildWorld, runways, terrainHeight } from './world.js?v=20261101183315';
+import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261101183315';
+import { Autopilot } from './autopilot.js?v=20261101183315';
+import { HUD } from './hud.js?v=20261101183315';
+import { Casual } from './casual.js?v=20261101183315';
+import { GameAudio } from './audio.js?v=20261101183315';
+import { SpeedFX } from './effects.js?v=20261101183315';
+import { Traffic } from './traffic.js?v=20261101183315';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
@@ -18,6 +19,7 @@ const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.5, 2.
 const { sun, sky } = buildWorld(scene);
 
 const traffic = new Traffic(scene);
+const fx = new SpeedFX(scene);
 const ac = new Aircraft();
 scene.add(ac.mesh);
 const ap = new Autopilot();
@@ -223,6 +225,7 @@ function startGame(easy) {
   document.body.classList.toggle('pro', !easy);
   sim.started = true;
   sim.paused = false;
+  ac.rollRateMax = easy ? 0.5 : 0.26;
   document.body.classList.add('playing');
   document.getElementById('menu').classList.add('hidden');
   if (easy && window.speechSynthesis) speechSynthesis.speak(new SpeechSynthesisUtterance(''));   // iOS 需在點擊時解鎖語音
@@ -251,6 +254,7 @@ function restart() {
   Object.assign(ap, { ap: false, athr: false, lat: 'HDG', vert: 'ALT', appArmed: false, wp: 1, hdg: startRunway.heading, assistGain: 0 });
   sim.timeScale = 1;
   sim.resetCam = true;
+  fx.reset();
   if (sim.casual) { casual.reset(); casual.setStage('briefing'); sim.briefT = 0; }
   document.getElementById('result').classList.add('hidden');
   shownResult = false;
@@ -388,7 +392,16 @@ function updateCamera(dt) {
     camera.fov = THREE.MathUtils.clamp(65 * 300 / Math.max(300, camera.position.distanceTo(ac.pos)), 5, 65);
   }
   const baseFov = camera.aspect < 1 ? 80 : 65;   // 直式手機視野放寬
-  if (mode !== 3) camera.fov = baseFov;
+  // 速度越快視野越寬，增加衝刺感
+  const spd = ac.vel.length();
+  const wantFov = baseFov + Math.min(1, Math.max(0, (spd - 50) / 180)) * 7;
+  if (mode !== 3) camera.fov += (wantFov - camera.fov) * Math.min(1, dt * 2);
+  // 起飛滾行與低空高速時輕微晃動
+  if (mode !== 3 && sim.started && !sim.paused && sim.timeScale <= 4) {
+    const agl = ac.pos.y - GEAR_H - 2;
+    const k = (ac.onGround ? Math.min(1, spd / 70) * 0.12 : agl < 300 ? Math.min(1, spd / 150) * 0.05 : 0);
+    if (k > 0) camera.position.add(new THREE.Vector3((Math.random() - 0.5) * k, (Math.random() - 0.5) * k, (Math.random() - 0.5) * k));
+  }
   camera.updateProjectionMatrix();
   // 防止鏡頭鑽入地面
   camera.position.y = Math.max(camera.position.y, 1.5);
@@ -424,6 +437,7 @@ function frame() {
   if (!sim.paused) traffic.update(Math.min(1, dt * (sim.started ? sim.timeScale : 1)));
   ac.syncMesh();
   updateCamera(dt);
+  fx.update(ac, camera, dt, sim.started && !sim.paused ? dt * sim.timeScale : 0, sim.timeScale);
   renderer.render(scene, camera);
   sim.audio.update(ac.throttle, ac.vel.length(), sim.started && !sim.paused && !ac.crashed && !ac.landed);
   if (sim.casual) casual.drawHUD(hud, camera, drag, dt);

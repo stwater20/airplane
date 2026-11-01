@@ -3,97 +3,261 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>TPE → NRT 飛行模擬</title>
-<meta name="theme-color" content="#0b1726">
+<title>飛向東京：桃園飛成田 3D 飛行模擬小遊戲｜SecTools Airlines（sectools.tw）</title>
+<meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="description" content="瀏覽器 3D 飛行模擬器：從臺灣桃園國際機場飛往東京成田國際機場。">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="免費線上 3D 飛行模擬小遊戲：從臺灣桃園機場（TPE）飛往東京成田機場（NRT）。手機、電腦瀏覽器直接玩，自動起降、穿越金色圓環、真實塔台通話與空服員英文廣播。由 sectools.tw 製作與維護。">
+<meta name="keywords" content="飛行模擬, 飛行遊戲, 線上遊戲, 免費小遊戲, 手機遊戲, 桃園機場, 成田機場, 東京, 開飛機, flight simulator, sectools">
+<meta name="author" content="sectools.tw">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="https://airplane.sectools.tw/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="sectools.tw">
+<meta property="og:locale" content="zh_TW">
+<meta property="og:url" content="https://airplane.sectools.tw/">
+<meta property="og:title" content="飛向東京：桃園飛成田 3D 飛行模擬小遊戲">
+<meta property="og:description" content="手機就能玩的 3D 飛行小遊戲：自動起降、穿越金色圓環、塔台通話與機上廣播。SecTools Airlines × gacha-sho 聯名航班。">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="飛向東京：桃園飛成田 3D 飛行模擬小遊戲">
+<meta name="twitter:description" content="手機就能玩的 3D 飛行小遊戲，由 sectools.tw 製作與維護。">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoGame",
+  "name": "飛向東京：桃園飛成田 3D 飛行模擬",
+  "alternateName": "SecTools Airlines Flight Simulator",
+  "url": "https://airplane.sectools.tw/",
+  "description": "免費線上 3D 飛行模擬小遊戲，從臺灣桃園機場飛往東京成田機場，手機與電腦瀏覽器皆可遊玩。",
+  "inLanguage": "zh-Hant",
+  "genre": ["Simulation", "Casual"],
+  "gamePlatform": ["Web browser", "iOS", "Android"],
+  "applicationCategory": "Game",
+  "operatingSystem": "Any",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "TWD" },
+  "author": { "@type": "Organization", "name": "sectools.tw", "url": "https://sectools.tw/" },
+  "publisher": { "@type": "Organization", "name": "sectools.tw", "url": "https://sectools.tw/" }
+}
+</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈️</text></svg>">
 <style>
-  :root { --panel: rgba(8, 18, 32, 0.78); --line: rgba(255,255,255,0.14); --acc: #4fe3ff; --on: #3dff8a; --txt: #e8eef6; }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1726; color: var(--txt);
-    font-family: -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif; user-select: none; -webkit-user-select: none; touch-action: none; }
+  :root {
+    --blue: #0a84ff; --green: #30d158; --orange: #ff9f0a; --yellow: #ffd60a; --pink: #ff375f; --indigo: #5e5ce6; --teal: #64d2ff;
+    --label: rgba(255,255,255,0.96); --label2: rgba(235,235,245,0.62); --label3: rgba(235,235,245,0.32);
+    --fill: rgba(120,120,128,0.24); --sep: rgba(84,84,88,0.55);
+    --glass: rgba(30,30,32,0.52); --glass-strong: rgba(28,28,30,0.72);
+    --sat: saturate(180%) blur(22px);
+    --sf: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang TC", "Helvetica Neue", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    --sfr: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif;
+    --st: env(safe-area-inset-top); --sb: env(safe-area-inset-bottom);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: var(--label); font-family: var(--sf);
+    -webkit-font-smoothing: antialiased; user-select: none; -webkit-user-select: none; touch-action: none; overscroll-behavior: none; -webkit-touch-callout: none; }
   #view canvas { display: block; }
   #hud { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .hidden { display: none !important; }
+  button { font-family: inherit; }
+  .glass { background: var(--glass); -webkit-backdrop-filter: var(--sat); backdrop-filter: var(--sat);
+    border: 0.5px solid rgba(255,255,255,0.14); box-shadow: 0 8px 30px rgba(0,0,0,0.22); }
 
-  #fcu { position: fixed; top: 52px; right: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px; display: grid; gap: 6px; font: 12px ui-monospace, Menlo, monospace; backdrop-filter: blur(6px); }
-  #fcu .row { display: flex; align-items: center; gap: 4px; }
-  #fcu .lbl { width: 32px; color: #9fb3c8; }
-  #fcu .val { width: 54px; text-align: center; color: var(--acc); font-weight: bold; font-size: 14px; }
-  #fcu button { background: #1b2a3d; color: var(--txt); border: 1px solid var(--line); border-radius: 6px; padding: 4px 7px; font: inherit; cursor: pointer; }
-  #fcu button:hover { background: #26405c; }
-  #fcu .modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 2px; }
-  #fcu .modes button.on { color: #071; background: var(--on); border-color: var(--on); font-weight: bold; }
+  /* ───── 輕鬆模式 HUD ───── */
+  #chud, #hSub, #hProg, #cbar, #skipBtn { display: none; }
+  body.casual.playing #chud, body.casual.playing #hProg, body.casual.playing #cbar { display: flex; }
+  body.casual.playing #hSub { display: block; }
+  #chud { position: fixed; top: calc(10px + var(--st)); left: 12px; right: 12px; justify-content: space-between; align-items: flex-start; gap: 10px; pointer-events: none; }
+  .cap { border-radius: 20px; padding: 9px 14px 8px; min-width: 112px; }
+  .cap .big { font: 600 22px/1.1 var(--sfr); letter-spacing: -0.02em; display: flex; align-items: baseline; gap: 5px; font-variant-numeric: tabular-nums; }
+  .cap .big small { font: 500 12px var(--sf); color: var(--label2); }
+  .cap .sub { font-size: 12px; color: var(--label2); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .cap.right { text-align: right; }
+  .cap.right .big { justify-content: flex-end; color: var(--teal); }
+  .star { color: var(--yellow); font-size: 18px; }
+  .center { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+  .island { background: #000; color: #fff; border-radius: 999px; padding: 8px 16px; font-weight: 600; font-size: 15px; white-space: nowrap;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3); transition: transform .35s cubic-bezier(.2,.9,.3,1.3); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .island.pop { transform: scale(1.08); }
+  .belt { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 4px 10px 4px 7px; border-radius: 999px;
+    background: var(--fill); color: var(--label3); transition: .3s; }
+  .belt.on { background: rgba(255,159,10,0.92); color: #1c1200; box-shadow: 0 0 16px rgba(255,159,10,0.55); }
+  .belt svg { width: 16px; height: 16px; }
 
-  #toast { position: fixed; top: 120px; left: 50%; transform: translate(-50%, -10px); background: var(--panel); padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line);
-    opacity: 0; transition: .25s; pointer-events: none; font-size: 14px; white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
-  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #hSub { position: fixed; left: 50%; top: calc(92px + var(--st)); transform: translate(-50%, -6px); width: min(560px, calc(100vw - 24px));
+    border-radius: 22px; padding: 11px 16px 12px; opacity: 0; transition: opacity .3s, transform .3s; pointer-events: none; }
+  #hSub.show { opacity: 1; transform: translate(-50%, 0); }
+  #hSub .who { font-size: 12px; font-weight: 700; letter-spacing: .02em; margin-bottom: 3px; }
+  #hSub .en { font-size: 15px; line-height: 1.38; }
+  #hSub .zh { font-size: 13px; line-height: 1.45; color: var(--label2); margin-top: 4px; }
 
-  .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at center, rgba(5,15,30,0.55), rgba(5,12,24,0.92)); padding: 16px; overflow: auto; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 26px 28px; max-width: 760px; width: 100%; backdrop-filter: blur(10px); box-shadow: 0 20px 60px rgba(0,0,0,.4); }
-  .card h1 { margin: 0 0 4px; font-size: 30px; letter-spacing: .02em; }
-  .card h1 small { font-size: 15px; color: #9fb3c8; font-weight: normal; margin-left: 8px; }
-  .card .route { color: var(--acc); font: 13px ui-monospace, Menlo, monospace; margin-bottom: 16px; }
-  .card h3 { margin: 18px 0 8px; font-size: 15px; color: #cfe3f7; }
-  .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 4px 18px; font-size: 13px; }
-  .keys div { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--line); padding: 3px 0; gap: 8px; }
-  kbd { font: 12px ui-monospace, Menlo, monospace; background: #1b2a3d; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; white-space: nowrap; }
-  ol { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.7; color: #d5e2ef; }
-  .big { display: inline-block; margin-top: 20px; background: linear-gradient(180deg, #3dd6ff, #1a8fd6); color: #031424; border: 0; font-size: 17px; font-weight: bold; padding: 12px 30px; border-radius: 10px; cursor: pointer; }
-  .big:hover { filter: brightness(1.1); }
-  #result .card { text-align: center; max-width: 440px; }
-  #result p { line-height: 1.7; }
+  #hProg { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + var(--sb)); width: min(380px, calc(100vw - 500px));
+    align-items: center; gap: 10px; border-radius: 999px; padding: 9px 14px; font-size: 12px; font-weight: 600; color: var(--label2); pointer-events: none; }
+  #hProg .track { position: relative; flex: 1; height: 4px; border-radius: 2px; background: var(--fill); }
+  #hProg .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; background: var(--blue); }
+  #hProg .plane { position: absolute; top: 50%; transform: translate(-50%, -52%) rotate(0deg); color: #fff; font-size: 14px; }
+  #hProg #hLeft { font-variant-numeric: tabular-nums; }
 
-  .lead { font-size: 16px; line-height: 1.6; margin: 10px 0 14px; }
-  .howto { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .howto div { background: rgba(255,255,255,0.06); border-radius: 10px; padding: 10px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
-  .howto span { font-size: 22px; }
-  #startBtn { width: 100%; font-size: 20px; padding: 16px; }
-  .kbhint { text-align: center; color: #9fb3c8; font-size: 12px; margin: 8px 0 0; }
-  details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
-  summary { cursor: pointer; color: #9fb3c8; font-size: 14px; }
-  details ol { margin-top: 10px; }
-  details .keys { margin-top: 10px; }
-  .big.pro { background: #1b2a3d; color: var(--txt); border: 1px solid var(--line); font-size: 15px; padding: 10px 20px; }
-  .link { background: none; border: 0; color: #9fb3c8; margin-top: 12px; font-size: 14px; cursor: pointer; text-decoration: underline; }
-  #cbar { display: none; position: fixed; left: 12px; bottom: 12px; gap: 8px; }
-  body.casual #cbar { display: flex; }
-  body.casual #fcu, body.casual #touch { display: none !important; }
-  body.casual #toast { top: auto; bottom: calc(100px + env(safe-area-inset-bottom)); font-size: 13px; padding: 6px 12px; }
-  #cbar { bottom: calc(12px + env(safe-area-inset-bottom)); }
-  html, body { overscroll-behavior: none; -webkit-touch-callout: none; }
-  #cbar button { background: rgba(8,18,32,0.7); color: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-size: 15px; cursor: pointer; }
-  #cbar .skip { display: none; background: #ffc83d; color: #1a1200; font-weight: bold; border: 0; }
-  body[data-stage="cruise"] #cbar .skip { display: block; }
-  #fcu { display: none; }
+  #cbar { position: fixed; left: 12px; bottom: calc(12px + var(--sb)); gap: 4px; padding: 5px; border-radius: 22px; }
+  #cbar button { width: 44px; height: 44px; border: 0; border-radius: 16px; background: transparent; color: var(--label); display: grid; place-items: center; cursor: pointer; transition: background .2s, opacity .2s; }
+  #cbar button:active { background: var(--fill); }
+  #cbar button svg { width: 22px; height: 22px; }
+  #cbar button.off { opacity: 0.38; }
+  #cbar button.on { background: var(--blue); }
+  #cbar .play { display: none; }
+  #cbar button.paused .pause { display: none; } #cbar button.paused .play { display: block; }
+  .tiltbtn { display: none !important; }
+  @media (pointer: coarse) { .tiltbtn { display: grid !important; } }
+
+  #skipBtn { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(150px + var(--sb)); border: 0; border-radius: 999px; padding: 13px 22px;
+    font-size: 16px; font-weight: 600; color: #fff; background: rgba(10,132,255,0.92); -webkit-backdrop-filter: var(--sat); backdrop-filter: var(--sat);
+    box-shadow: 0 8px 24px rgba(10,132,255,0.35); cursor: pointer; }
+  body.casual.playing[data-stage="cruise"] #skipBtn, body.casual.playing[data-stage="briefing"] #skipBtn { display: block; }
+  body[data-stage="cruise"] #skipBtn::after { content: '跳到降落 ›'; }
+  body[data-stage="briefing"] #skipBtn::after { content: '跳過安全示範 ›'; }
+
+  #toast { position: fixed; top: 42%; left: 50%; transform: translate(-50%, 8px) scale(.96); padding: 10px 18px; border-radius: 999px; font-size: 14px; font-weight: 500;
+    opacity: 0; transition: .3s cubic-bezier(.2,.9,.3,1.2); pointer-events: none; white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  body.pro #toast { top: calc(120px + var(--st)); }
+
+  /* 窄螢幕（直式手機） */
+  @media (max-width: 599px) {
+    #chud { flex-wrap: wrap; }
+    .center { order: 3; flex-basis: 100%; }
+    .cap { min-width: 0; padding: 8px 12px 7px; }
+    .cap .big { font-size: 20px; }
+    #hSub { top: calc(132px + var(--st)); }
+    #hSub .en { font-size: 14px; } #hSub .zh { font-size: 12px; }
+    #hProg { width: calc(100vw - 24px); bottom: calc(76px + var(--sb)); }
+  }
+  /* 矮螢幕（橫式手機） */
+  @media (max-height: 499px) and (min-width: 600px) {
+    #hSub { top: calc(90px + var(--st)); width: min(440px, calc(100vw - 300px)); }
+    #hProg { left: auto; right: 12px; transform: none; width: min(320px, calc(100vw - 330px)); }
+    #skipBtn { bottom: calc(80px + var(--sb)); }
+  }
+
+  /* ───── 選單（Apple 風格卡片／手機底部面板） ───── */
+  .overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; overflow: auto;
+    background: rgba(0,0,0,0.28); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  .sheet { width: 100%; max-width: 440px; border-radius: 30px; padding: 26px 22px 20px; background: var(--glass-strong);
+    -webkit-backdrop-filter: var(--sat); backdrop-filter: var(--sat); border: 0.5px solid rgba(255,255,255,0.14); box-shadow: 0 30px 80px rgba(0,0,0,0.45);
+    animation: rise .5s cubic-bezier(.2,.9,.3,1); }
+  @keyframes rise { from { transform: translateY(30px); opacity: 0; } }
+  .grabber { width: 36px; height: 5px; border-radius: 3px; background: var(--label3); margin: -12px auto 16px; display: none; }
+  .eyebrow { font-size: 13px; font-weight: 600; color: var(--orange); letter-spacing: .02em; }
+  .eyebrow a { color: inherit; text-decoration: none; }
+  .byline { margin: 0 0 10px; font-size: 13px; color: var(--label2); }
+  .byline a { color: var(--blue); text-decoration: none; font-weight: 600; }
+  h1.title { font: 700 34px/1.12 var(--sf); letter-spacing: -0.02em; margin: 4px 0 6px; }
+  .subtitle { color: var(--label2); font-size: 15px; line-height: 1.45; margin: 0 0 18px; }
+  .list { border-radius: 16px; background: var(--fill); overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; font-size: 15px; }
+  .row + .row { border-top: 0.5px solid var(--sep); }
+  .row .ic { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; color: #fff; }
+  .row .ic svg { width: 18px; height: 18px; }
+  .row .txt small { display: block; color: var(--label2); font-size: 12px; margin-top: 1px; }
+  .btn { display: block; width: 100%; border: 0; border-radius: 14px; padding: 15px; font-size: 17px; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer; transition: transform .15s, filter .15s; }
+  .btn:active { transform: scale(.98); filter: brightness(.92); }
+  .btn.primary { background: var(--blue); color: #fff; margin-top: 18px; }
+  .btn.gray { background: var(--fill); color: var(--blue); margin-top: 10px; }
+  .btn.gacha { background: linear-gradient(135deg, #ff9f0a, #ff375f); color: #fff; margin-top: 10px; }
+  .foot { text-align: center; color: var(--label3); font-size: 12px; margin: 12px 0 0; }
+  .links { display: flex; justify-content: center; gap: 16px; margin-top: 14px; font-size: 13px; }
+  .links a { color: var(--blue); text-decoration: none; }
+  details { margin-top: 14px; }
+  summary { cursor: pointer; color: var(--label2); font-size: 14px; list-style: none; text-align: center; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: ' ›'; }
+  details[open] summary::after { content: ' ⌄'; }
+  ol { margin: 12px 0 0; padding-left: 20px; font-size: 13px; line-height: 1.7; color: var(--label2); }
+  .keys { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; font-size: 12px; margin-top: 10px; color: var(--label2); }
+  .keys div { display: flex; justify-content: space-between; gap: 6px; padding: 3px 0; border-bottom: 0.5px solid var(--sep); }
+  kbd { font: 600 11px var(--sf); background: var(--fill); border-radius: 5px; padding: 1px 5px; color: var(--label); }
+
+  #result .sheet { text-align: center; }
+  #result h2 { font: 700 26px var(--sf); margin: 6px 0 8px; }
+  #result p { color: var(--label2); line-height: 1.6; margin: 0; font-size: 15px; }
+  #result p b { display: block; margin-top: 10px; font: 700 44px var(--sfr) !important; color: var(--yellow) !important; letter-spacing: -0.02em; }
+
+  @media (max-width: 599px) {
+    #menu, #result { place-items: end center; padding: 0; }
+    .sheet { max-width: none; border-radius: 30px 30px 0 0; padding-bottom: calc(20px + var(--sb)); max-height: 92vh; overflow: auto; }
+    .grabber { display: block; }
+    h1.title { font-size: 30px; }
+  }
+
+  /* ───── 專業模式 ───── */
+  #fcu { display: none; position: fixed; top: calc(52px + var(--st)); right: 12px; border-radius: 18px; padding: 10px; gap: 6px; font: 12px ui-monospace, Menlo, monospace; }
   body.pro #fcu { display: grid; }
+  #fcu .r { display: flex; align-items: center; gap: 4px; }
+  #fcu .lbl { width: 32px; color: var(--label2); }
+  #fcu .val { width: 54px; text-align: center; color: var(--teal); font-weight: bold; font-size: 14px; }
+  #fcu button { background: var(--fill); color: var(--label); border: 0; border-radius: 8px; padding: 5px 8px; font: inherit; cursor: pointer; }
+  #fcu .modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 2px; }
+  #fcu .modes button.on { color: #fff; background: var(--green); font-weight: bold; }
   #touch { display: none; }
   @media (pointer: coarse) {
     body.pro #touch { display: block; }
-    #stick { position: fixed; left: 24px; bottom: 150px; width: 130px; height: 130px; border-radius: 50%; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.25); touch-action: none; }
-    #stick .knob { position: absolute; left: 40px; top: 40px; width: 50px; height: 50px; border-radius: 50%; background: rgba(79,227,255,0.55); pointer-events: none; }
-    #tbtns { position: fixed; right: 12px; bottom: 290px; display: grid; grid-template-columns: repeat(3, 52px); gap: 6px; }
-    #tbtns button { height: 44px; border-radius: 8px; background: rgba(8,18,32,0.75); color: var(--txt); border: 1px solid var(--line); font-size: 12px; }
+    #stick { position: fixed; left: 24px; bottom: 150px; width: 130px; height: 130px; border-radius: 50%; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.25); touch-action: none; }
+    #stick .knob { position: absolute; left: 40px; top: 40px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.5); pointer-events: none; }
+    #tbtns { position: fixed; right: 12px; bottom: 290px; display: grid; grid-template-columns: repeat(3, 56px); gap: 6px; }
+    #tbtns button { height: 44px; border-radius: 12px; background: var(--glass); color: var(--label); border: 0; font-size: 12px; }
   }
-  @media (max-width: 700px) {
-    #fcu { top: 8px; right: 8px; transform: scale(.8); transform-origin: top right; }
-    .card { padding: 18px 16px; }
-    .card h1 { font-size: 23px; }
-  }
+  @media (max-width: 700px) { #fcu { top: 8px; right: 8px; transform: scale(.8); transform-origin: top right; } }
 </style>
 <script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
 </script>
 </head>
 <body>
 <div id="view"></div>
 <canvas id="hud"></canvas>
 
-<div id="fcu">
-  <div class="row"><span class="lbl">SPD</span><button data-adj="spd" data-d="-10">−</button><span class="val" id="apSpd">280</span><button data-adj="spd" data-d="10">+</button></div>
-  <div class="row"><span class="lbl">HDG</span><button data-adj="hdg" data-d="-10">−</button><span class="val" id="apHdg">053</span><button data-adj="hdg" data-d="10">+</button></div>
-  <div class="row"><span class="lbl">ALT</span><button data-adj="alt" data-d="-1000">−</button><span class="val" id="apAlt">FL350</span><button data-adj="alt" data-d="1000">+</button></div>
+<!-- 輕鬆模式 HUD -->
+<div id="chud">
+  <div class="cap glass">
+    <div class="big"><span class="star">★</span><span id="hPts">0</span></div>
+    <div class="sub" id="hRings">圓環 0 / 0</div>
+  </div>
+  <div class="center">
+    <div class="island" id="hStage">準備中</div>
+    <div class="belt" id="hBelt">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="2.2"/><path d="M8 21v-7a4 4 0 0 1 8 0v7"/><path d="M7 11l10 5"/></svg>
+      <span>繫好安全帶</span>
+    </div>
+  </div>
+  <div class="cap glass right">
+    <div class="big"><small>時速</small><span id="hKmh">0</span><small>km/h</small></div>
+    <div class="sub" id="hAlt">高度 0 ft</div>
+  </div>
+</div>
+<div id="hSub" class="glass"><div class="who" id="hWho"></div><div class="en" id="hEn"></div><div class="zh" id="hZh"></div></div>
+<div id="hProg" class="glass">
+  <span>TPE</span>
+  <div class="track"><div class="fill" id="hFill"></div><div class="plane" id="hPlane">✈︎</div></div>
+  <span id="hLeft">NRT</span>
+</div>
+
+<div id="cbar" class="glass">
+  <button data-c="pause" aria-label="暫停">
+    <svg class="pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg>
+    <svg class="play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+  </button>
+  <button data-c="cam" aria-label="切換視角"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="3"/><path d="M15.5 10.5l5-3v9l-5-3z"/></svg></button>
+  <button data-c="voice" aria-label="語音廣播"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/></svg></button>
+  <button data-c="music" aria-label="背景音樂"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></button>
+  <button data-c="tilt" aria-label="傾斜手機操控" class="tiltbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="7" y="2.5" width="10" height="19" rx="2.5" transform="rotate(-18 12 12)"/><path d="M3 9a9 9 0 0 1 3-4M21 15a9 9 0 0 1-3 4"/></svg></button>
+</div>
+<button data-c="skip" id="skipBtn"></button>
+
+<!-- 專業模式 -->
+<div id="fcu" class="glass">
+  <div class="r"><span class="lbl">SPD</span><button data-adj="spd" data-d="-10">−</button><span class="val" id="apSpd">280</span><button data-adj="spd" data-d="10">+</button></div>
+  <div class="r"><span class="lbl">HDG</span><button data-adj="hdg" data-d="-10">−</button><span class="val" id="apHdg">053</span><button data-adj="hdg" data-d="10">+</button></div>
+  <div class="r"><span class="lbl">ALT</span><button data-adj="alt" data-d="-1000">−</button><span class="val" id="apAlt">FL350</span><button data-adj="alt" data-d="1000">+</button></div>
   <div class="modes">
     <button id="bAP" data-btn="k" title="自動駕駛 (K)">AP</button>
     <button id="bATHR" data-btn="u" title="自動油門 (U)">A/T</button>
@@ -101,7 +265,6 @@
     <button id="bAPPR" data-btn="l" title="ILS 進場 (L)">APPR</button>
   </div>
 </div>
-
 <div id="touch">
   <div id="stick"><div class="knob"></div></div>
   <div id="tbtns">
@@ -111,22 +274,27 @@
   </div>
 </div>
 
-<div id="toast"></div>
+<div id="toast" class="glass"></div>
 
 <div id="menu" class="overlay">
-  <div class="card">
-    <h1>✈️ 飛向東京<small>桃園 → 成田</small></h1>
-    <p class="lead">自動起飛、自動降落，你只要用手指控制方向，讓飛機穿過 <b style="color:#ffc83d">金色圓環</b> 拿分數！</p>
-    <div class="howto">
-      <div><span>👆</span>按住螢幕任意處拖曳</div>
-      <div><span>↔️</span>左右拖＝轉彎</div>
-      <div><span>↕️</span>上下拖＝爬升／下降</div>
-      <div><span>⭕</span>穿過圓環 +100 分</div>
+  <div class="sheet">
+    <div class="grabber"></div>
+    <div class="eyebrow">SecTools Airlines × <a href="https://gacha-sho.sectools.tw/" target="_blank" rel="noopener">gacha-sho</a> 聯名航班</div>
+    <h1 class="title">飛向東京</h1>
+    <p class="byline">由 <a href="https://sectools.tw/" target="_blank" rel="noopener">sectools.tw</a> 製作與維護</p>
+    <p class="subtitle">桃園 TPE → 東京成田 NRT。起飛、巡航、降落都自動完成，你只要用手指操控，讓飛機穿過金色圓環。</p>
+    <div class="list">
+      <div class="row"><div class="ic" style="background:var(--blue)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M12 10.5V9a1.5 1.5 0 0 1 3 0v2"/><path d="M15 11a1.5 1.5 0 0 1 3 0v3a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L4.5 15a1.5 1.5 0 0 1 2.4-1.8L9 15"/></svg></div>
+        <div class="txt">按住螢幕拖曳<small>左右轉彎・上下爬升或下降</small></div></div>
+      <div class="row"><div class="ic" style="background:var(--orange)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4"><circle cx="12" cy="12" r="7.5"/></svg></div>
+        <div class="txt">穿過金色圓環<small>每個 +100 分，降落越平穩加分越多</small></div></div>
+      <div class="row"><div class="ic" style="background:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></div>
+        <div class="txt">真實機上廣播<small>塔台通話、空服員安全示範與英文語音</small></div></div>
     </div>
-    <button class="big" id="startBtn">▶ 開始遊戲</button>
-    <p class="kbhint">電腦也可以用方向鍵 ↑↓←→ 操控</p>
+    <button class="btn primary" id="startBtn">開始飛行</button>
+    <p class="foot">電腦可用方向鍵操控・手機可開啟傾斜操控</p>
     <details>
-      <summary>專業模式（鍵盤、全手動，很難）</summary>
+      <summary>專業模式（鍵盤全手動，很難）</summary>
       <ol>
         <li>按住 <kbd>R</kbd> 將油門推至 100%，約 <b>150 kt</b> 時按住 <kbd>S</kbd>/<kbd>↓</kbd> 抬頭。</li>
         <li>離地後 <kbd>G</kbd> 收起落架、<kbd>Z</kbd> 收襟翼；400 ft 以上按 <kbd>K</kbd> <kbd>U</kbd> <kbd>N</kbd> 接通自動駕駛。</li>
@@ -135,33 +303,33 @@
       <div class="keys">
         <div><span>俯仰／滾轉</span><span><kbd>W</kbd><kbd>S</kbd><kbd>A</kbd><kbd>D</kbd></span></div>
         <div><span>油門 + / −</span><span><kbd>R</kbd><kbd>F</kbd></span></div>
-        <div><span>襟翼／起落架</span><span><kbd>Z</kbd><kbd>X</kbd> / <kbd>G</kbd></span></div>
-        <div><span>煞車／減速板</span><span><kbd>Space</kbd> / <kbd>H</kbd></span></div>
-        <div><span>自動駕駛／油門</span><span><kbd>K</kbd> / <kbd>U</kbd></span></div>
-        <div><span>導航／ILS</span><span><kbd>N</kbd> / <kbd>L</kbd></span></div>
+        <div><span>襟翼／起落架</span><span><kbd>Z</kbd><kbd>X</kbd> <kbd>G</kbd></span></div>
+        <div><span>煞車／減速板</span><span><kbd>Space</kbd> <kbd>H</kbd></span></div>
+        <div><span>自動駕駛／油門</span><span><kbd>K</kbd> <kbd>U</kbd></span></div>
+        <div><span>導航／ILS</span><span><kbd>N</kbd> <kbd>L</kbd></span></div>
         <div><span>時間加速</span><span><kbd>T</kbd><kbd>Y</kbd></span></div>
         <div><span>視角／地圖／暫停</span><span><kbd>C</kbd> <kbd>M</kbd> <kbd>P</kbd></span></div>
       </div>
-      <button class="big pro" id="proBtn">開始專業模式</button>
+      <button class="btn gray" id="proBtn">開始專業模式</button>
     </details>
+    <a class="btn gacha" href="https://gacha-sho.sectools.tw/" target="_blank" rel="noopener">聯名合作：去玩 gacha-sho ›</a>
+    <div class="links"><a href="https://sectools.tw/" target="_blank" rel="noopener">更多工具與小遊戲：sectools.tw</a></div>
   </div>
-</div>
-
-<div id="cbar">
-  <button data-c="pause" aria-label="暫停">⏸</button>
-  <button data-c="cam">🎥 視角</button>
-  <button data-c="voice" aria-label="語音廣播">🔊</button>
-  <button data-c="skip" class="skip">⏩ 跳到降落</button>
 </div>
 
 <div id="result" class="overlay hidden">
-  <div class="card">
+  <div class="sheet">
+    <div class="grabber"></div>
     <h2></h2>
     <p></p>
-    <button class="big" id="againBtn">再飛一次</button><br><button class="link" data-c="menu">回主選單</button>
+    <button class="btn primary" id="againBtn">再飛一次</button>
+    <a class="btn gacha" href="https://gacha-sho.sectools.tw/" target="_blank" rel="noopener">接著去玩聯名遊戲 gacha-sho ›</a>
+    <button class="btn gray" data-c="menu">回主選單</button>
+    <div class="links"><a href="https://sectools.tw/" target="_blank" rel="noopener">喜歡嗎？看看 sectools.tw 的更多作品</a></div>
   </div>
 </div>
 
-<script type="module" src="js/main.js"></script>
+<noscript><p style="padding:20px;color:#fff">飛向東京：桃園飛成田 3D 飛行模擬小遊戲，由 sectools.tw 製作與維護。請開啟 JavaScript 以遊玩。</p></noscript>
+<script type="module" src="js/main.js?v=20261101182518"></script>
 </body>
 </html>

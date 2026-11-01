@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { COASTLINES, MOUNTAINS, AIRPORTS, EXTRA_CITIES, toWorld } from './geo.js';
+import { COASTLINES, MOUNTAINS, AIRPORTS, EXTRA_CITIES, toWorld } from './geo.js?v=20261101182518';
 
 export const RUNWAY_Y = 2.0;      // 跑道表面高度
 const LAND_Y = 1.0;
@@ -196,7 +196,7 @@ export function buildWorld(scene) {
       apron.rotation.set(-Math.PI / 2, 0, rot);
       apron.position.set(c.x + px * 350, LAND_Y + 0.6, c.z + pz * 350);
       scene.add(apron);
-      const term = new THREE.Mesh(new THREE.BoxGeometry(120, 22, rw.length * 0.35), new THREE.MeshLambertMaterial({ color: 0xc9ccd2 }));
+      const term = new THREE.Mesh(new THREE.BoxGeometry(120, 22, rw.length * 0.48), new THREE.MeshLambertMaterial({ color: 0xc9ccd2 }));
       term.rotation.y = rot;
       term.position.set(c.x + px * 600, 11, c.z + pz * 600);
       scene.add(term);

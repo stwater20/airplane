@@ -1,6 +1,6 @@
-import { ROUTE, toWorld } from './geo.js';
-import { runways, RUNWAY_Y, terrainHeight } from './world.js';
-import { GEAR_H } from './aircraft.js';
+import { ROUTE, toWorld } from './geo.js?v=20261101182518';
+import { runways, RUNWAY_Y, terrainHeight } from './world.js?v=20261101182518';
+import { GEAR_H } from './aircraft.js?v=20261101182518';
 
 const D2R = Math.PI / 180, R2D = 180 / Math.PI;
 const KT = 0.514444, FT = 0.3048;
@@ -97,7 +97,7 @@ export class Autopilot {
     const herr = wrap180(hdgT - att.heading);
     const bankLim = this.vert === 'FLARE' ? 3 : (this.lat === 'LOC' ? 15 : 25);
     let bankT = clamp(herr * 2.0, -bankLim, bankLim) * D2R;
-    if (this.vert !== 'FLARE') bankT += this.assist.x * this.assistGain * 20 * D2R;
+    if (this.vert !== 'FLARE') bankT += this.assist.x * this.assistGain * 24 * D2R;
     ac.input.roll = clamp((bankT - att.bank) * 1.6, -1, 1);
     ac.input.yaw = 0;
 
@@ -107,7 +107,7 @@ export class Autopilot {
       const altT = this.alt * FT;
       vsT = clamp((altT - h) * 0.06, -this.vsMax * 0.00508 * 0.9, this.vsMax * 0.00508);
       if (vsT > 0) vsT *= clamp((ias - (this.spd - 35)) / 20, 0.15, 1);  // 速度不足時減緩爬升
-      vsT += this.assist.y * this.assistGain * 10;
+      vsT += this.assist.y * this.assistGain * 12;
     } else if (this.vert === 'GS') {
       vsT = -ac.tas * Math.tan(3 * D2R) * Math.cos(0) + (ils.gsAlt - h) * 0.15;
       vsT = clamp(vsT, -8, 2) + this.assist.y * this.assistGain * 6;

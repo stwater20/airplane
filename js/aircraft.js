@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RUNWAY_Y, terrainHeight, runwayAt } from './world.js';
+import { RUNWAY_Y, terrainHeight, runwayAt } from './world.js?v=20261101182518';
 
 // 單位：SI。機身座標：-Z 前、+Y 上、+X 右
 const G = 9.81;
@@ -16,10 +16,11 @@ export const FLAP_NAMES = ['UP', '1', '2', '3', 'FULL'];
 
 export function airDensity(h) { return 1.225 * Math.exp(-Math.max(h, 0) / 8500); }
 
-export function buildAircraftModel() {
+export function buildAircraftModel(livery = 0x1b4f9c) {
   const g = new THREE.Group();
   const white = new THREE.MeshLambertMaterial({ color: 0xf2f4f7 });
-  const blue = new THREE.MeshLambertMaterial({ color: 0x1b4f9c });
+  const blue = new THREE.MeshLambertMaterial({ color: livery });
+  blue.userData.livery = true;
   const grey = new THREE.MeshLambertMaterial({ color: 0x9aa3ad });
   const dark = new THREE.MeshLambertMaterial({ color: 0x222831 });
   const glass = new THREE.MeshLambertMaterial({ color: 0x1a2a3a });
@@ -139,7 +140,7 @@ export class Aircraft {
   }
 
   placeOnRunway(rw, fromEnd = -1) {
-    const s = fromEnd * (rw.halfLen - 120);
+    const s = fromEnd * rw.halfLen * 0.45;   // 從靠近停機坪的滑行道口進跑道（仍有約 2.8 km 可用）
     this.pos.set(rw.cx + rw.dirX * s, RUNWAY_Y + GEAR_H, rw.cz + rw.dirZ * s);
     const hr = rw.heading * Math.PI / 180;
     this.quat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -hr);

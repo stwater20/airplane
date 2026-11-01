@@ -1,7 +1,7 @@
-import { COASTLINES, ROUTE, toLonLat } from './geo.js';
-import { FLAP_NAMES, GEAR_H } from './aircraft.js';
-import { terrainHeight } from './world.js';
-import { wrap180 } from './autopilot.js';
+import { COASTLINES, ROUTE, toLonLat } from './geo.js?v=20261101182518';
+import { FLAP_NAMES, GEAR_H } from './aircraft.js?v=20261101182518';
+import { terrainHeight } from './world.js?v=20261101182518';
+import { wrap180 } from './autopilot.js?v=20261101182518';
 
 const R2D = 180 / Math.PI;
 const GREEN = '#3dff8a', CYAN = '#4fe3ff', MAG = '#ff5cf0', AMBER = '#ffb52e', WHITE = '#f4f7fb';
@@ -276,40 +276,45 @@ export class HUD {
     diamond(g, cx + R + 14, gy);
   }
 
-  map(g, ac, ap, S) {
-    const size = (this.w < 700 ? 150 : 230);
-    const x0 = this.w - size - 14, y0 = this.h - size - 14;
+  // apple = 輕鬆模式的圓角玻璃風格
+  map(g, ac, ap, S, apple = false) {
+    const size = apple ? 190 : (this.w < 700 ? 150 : 230);
+    const x0 = this.w - size - (apple ? 12 : 14), y0 = this.h - size - (apple ? 12 : 14);
     g.save();
-    g.fillStyle = 'rgba(5,20,40,0.82)';
-    g.fillRect(x0, y0, size, size);
-    g.beginPath(); g.rect(x0, y0, size, size); g.clip();
+    g.fillStyle = apple ? 'rgba(28,28,30,0.62)' : 'rgba(5,20,40,0.82)';
+    g.beginPath();
+    if (apple) g.roundRect(x0, y0, size, size, 22); else g.rect(x0, y0, size, size);
+    g.fill(); g.clip();
     const me = toLonLat(ac.pos.x, ac.pos.z);
     const spanDeg = [24, 8, 2, 0.5][this.mapZoom];
     const cxm = this.mapZoom === 0 ? 131 : me.lon, cym = this.mapZoom === 0 ? 30.3 : me.lat;
     const k = size / spanDeg;
     const P = (lon, lat) => [x0 + size / 2 + (lon - cxm) * k * Math.cos(30 * Math.PI / 180), y0 + size / 2 - (lat - cym) * k];
-    g.fillStyle = '#2e4b2a'; g.strokeStyle = '#6f8f5a'; g.lineWidth = 1;
+    g.fillStyle = apple ? '#3d4a3c' : '#2e4b2a'; g.strokeStyle = apple ? 'rgba(255,255,255,0.18)' : '#6f8f5a'; g.lineWidth = 1;
     for (const pts of Object.values(COASTLINES)) {
       g.beginPath();
       pts.forEach(([lo, la], i) => { const [px, py] = P(lo, la); i ? g.lineTo(px, py) : g.moveTo(px, py); });
       g.closePath(); g.fill(); g.stroke();
     }
-    g.strokeStyle = MAG; g.lineWidth = 1.5; g.beginPath();
+    const ROUTE_C = apple ? '#0a84ff' : MAG;
+    g.strokeStyle = ROUTE_C; g.lineWidth = apple ? 2.5 : 1.5; g.lineCap = 'round'; g.beginPath();
     ROUTE.forEach((p, i) => { const [px, py] = P(p.lon, p.lat); i ? g.lineTo(px, py) : g.moveTo(px, py); });
     g.stroke();
-    g.font = '9px ui-monospace, monospace'; g.textAlign = 'left';
+    g.font = apple ? '600 10px -apple-system, sans-serif' : '9px ui-monospace, monospace'; g.textAlign = 'left';
     ROUTE.forEach((p, i) => {
       const [px, py] = P(p.lon, p.lat);
-      g.fillStyle = i === ap.wp ? MAG : WHITE;
-      g.fillRect(px - 2, py - 2, 4, 4);
+      g.fillStyle = i === ap.wp ? (apple ? '#ffd60a' : MAG) : WHITE;
+      if (apple) { if (i === 0 || i === ROUTE.length - 1 || i === ap.wp) { g.beginPath(); g.arc(px, py, 3, 0, Math.PI * 2); g.fill(); } } else g.fillRect(px - 2, py - 2, 4, 4);
+      if (apple && !(i === 0 || i === ROUTE.length - 1)) return;
       if (this.mapZoom > 0 || i === 0 || i === ROUTE.length - 1) g.fillText(p.name, px + 4, py - 3);
     });
     const [ax, ay] = P(me.lon, me.lat);
     const hd = ac.attitude().heading * Math.PI / 180;
     g.save(); g.translate(ax, ay); g.rotate(hd);
-    g.fillStyle = AMBER; g.beginPath(); g.moveTo(0, -7); g.lineTo(5, 6); g.lineTo(0, 3); g.lineTo(-5, 6); g.fill();
+    g.fillStyle = apple ? '#ffffff' : AMBER; g.beginPath(); g.moveTo(0, -7); g.lineTo(5, 6); g.lineTo(0, 3); g.lineTo(-5, 6); g.fill();
     g.restore();
     g.restore();
+    if (apple) return;
     // 剩餘距離
     const dest = ap.route[ap.route.length - 1];
     const dist = Math.hypot(dest.x - ac.pos.x, dest.z - ac.pos.z) / 1852;

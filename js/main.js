@@ -1,9 +1,11 @@
 import * as THREE from 'three';
-import { buildWorld, runways, terrainHeight } from './world.js';
-import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js';
-import { Autopilot } from './autopilot.js';
-import { HUD } from './hud.js';
-import { Casual } from './casual.js';
+import { buildWorld, runways, terrainHeight } from './world.js?v=20261101182518';
+import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261101182518';
+import { Autopilot } from './autopilot.js?v=20261101182518';
+import { HUD } from './hud.js?v=20261101182518';
+import { Casual } from './casual.js?v=20261101182518';
+import { GameAudio } from './audio.js?v=20261101182518';
+import { Traffic } from './traffic.js?v=20261101182518';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
@@ -15,6 +17,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.5, 2.5e6);
 const { sun, sky } = buildWorld(scene);
 
+const traffic = new Traffic(scene);
 const ac = new Aircraft();
 scene.add(ac.mesh);
 const ap = new Autopilot();
@@ -24,7 +27,9 @@ const startRunway = runways.find((r) => r.airport === 'TPE' && r.id.startsWith('
 ac.placeOnRunway(startRunway, -1);
 ap.hdg = startRunway.heading;
 
-const sim = { ac, ap, camera, timeScale: 1, paused: true, camMode: 0, started: false, casual: true, voice: true };
+const sim = { ac, ap, camera, timeScale: 1, paused: true, camMode: 0, started: false, casual: true, voice: true, tilt: false };
+sim.audio = new GameAudio();
+sim.runways = runways;
 window.__sim = sim;
 const casual = new Casual(scene, sim, (m) => toast(m));
 sim.casualGame = casual;
@@ -166,6 +171,43 @@ function updatePanel() {
   set('bAP', ap.ap); set('bATHR', ap.athr); set('bNAV', ap.lat === 'NAV'); set('bAPPR', ap.appArmed || ap.lat === 'LOC');
 }
 
+// 傾斜手機操控
+const tilt = { x: 0, y: 0, b0: null, g0: null };
+function onOrient(e) {
+  const ang = (screen.orientation?.angle ?? window.orientation ?? 0) % 360;
+  let lr, fb;
+  if (ang === 90) { lr = e.beta; fb = -e.gamma; } else if (ang === 270 || ang === -90) { lr = -e.beta; fb = e.gamma; } else { lr = e.gamma; fb = e.beta; }
+  if (tilt.b0 === null) tilt.b0 = fb;
+  tilt.x = Math.max(-1, Math.min(1, lr / 22));
+  tilt.y = Math.max(-1, Math.min(1, (fb - tilt.b0) / 18));   // 手機上緣往自己傾＝爬升
+}
+async function toggleTilt(b) {
+  if (!sim.tilt) {
+    try {
+      if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) {
+        if (await DeviceOrientationEvent.requestPermission() !== 'granted') { toast('未取得傾斜感應權限'); return; }
+      }
+    } catch { toast('此裝置不支援傾斜操控'); return; }
+    tilt.b0 = null;
+    addEventListener('deviceorientation', onOrient);
+    sim.tilt = true; toast('傾斜操控：左右傾＝轉彎，上緣往自己＝爬升');
+  } else {
+    removeEventListener('deviceorientation', onOrient);
+    sim.tilt = false; tilt.x = tilt.y = 0; toast('改回拖曳操控');
+  }
+  b.classList.toggle('on', sim.tilt);
+}
+// 切到別的 App 時自動暫停
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (sim.started && !sim.paused) { sim.paused = true; sim.autoPaused = true; }
+    window.speechSynthesis?.pause(); sim.audio.suspend();
+  } else {
+    window.speechSynthesis?.resume(); sim.audio.resume();
+    if (sim.autoPaused) { sim.paused = false; sim.autoPaused = false; }
+  }
+});
+
 let toastTimer;
 function toast(msg) {
   const el = document.getElementById('toast');
@@ -181,20 +223,24 @@ function startGame(easy) {
   document.body.classList.toggle('pro', !easy);
   sim.started = true;
   sim.paused = false;
+  document.body.classList.add('playing');
   document.getElementById('menu').classList.add('hidden');
   if (easy && window.speechSynthesis) speechSynthesis.speak(new SpeechSynthesisUtterance(''));   // iOS 需在點擊時解鎖語音
-  if (easy) { casual.reset(); casual.setStage('takeoff', '自動起飛中…離地後拖曳畫面操控！'); } else toast('油門 R 推到 100%，速度 150 kt 時按 S/↓ 拉起');
+  sim.audio.init();
+  if (easy) { casual.reset(); casual.setStage('briefing', '空服員安全示範（可按「跳過」）'); } else toast('油門 R 推到 100%，速度 150 kt 時按 S/↓ 拉起');
 }
 document.getElementById('startBtn').addEventListener('click', () => startGame(true));
 document.getElementById('proBtn').addEventListener('click', () => startGame(false));
 document.querySelectorAll('[data-c]').forEach((b) => b.addEventListener('click', () => {
   const c = b.dataset.c;
   if (c === 'cam') cycleCam();
-  if (c === 'skip' && casual.stage === 'cruise') casual.toApproach();
-  if (c === 'pause') { sim.paused = !sim.paused; b.textContent = sim.paused ? '▶' : '⏸'; }
+  if (c === 'skip') { if (casual.stage === 'cruise') casual.toApproach(); else if (casual.stage === 'briefing') casual.skipBriefing(); }
+  if (c === 'music') { sim.audio.musicOn = !sim.audio.musicOn; b.classList.toggle('off', !sim.audio.musicOn); }
+  if (c === 'tilt') toggleTilt(b);
+  if (c === 'pause') { sim.paused = !sim.paused; b.classList.toggle('paused', sim.paused); }
   if (c === 'menu') location.reload();
   if (c === 'voice') {
-    sim.voice = !sim.voice; b.textContent = sim.voice ? '🔊' : '🔇';
+    sim.voice = !sim.voice; b.classList.toggle('off', !sim.voice);
     if (!sim.voice && window.speechSynthesis) speechSynthesis.cancel();
   }
   b.blur();
@@ -205,7 +251,7 @@ function restart() {
   Object.assign(ap, { ap: false, athr: false, lat: 'HDG', vert: 'ALT', appArmed: false, wp: 1, hdg: startRunway.heading, assistGain: 0 });
   sim.timeScale = 1;
   sim.resetCam = true;
-  if (sim.casual) { casual.reset(); casual.setStage('takeoff', '自動起飛中…'); }
+  if (sim.casual) { casual.reset(); casual.setStage('briefing'); sim.briefT = 0; }
   document.getElementById('result').classList.add('hidden');
   shownResult = false;
 }
@@ -251,10 +297,19 @@ function readControls(dt) {
     let x = (k('d', 'arrowright') ? 1 : 0) - (k('a', 'arrowleft') ? 1 : 0);
     let y = (k('w', 'arrowup') ? 1 : 0) - (k('s', 'arrowdown') ? 1 : 0);
     if (drag.active) {
-      x += Math.max(-1, Math.min(1, (drag.x - drag.ox) / 70));
-      y += Math.max(-1, Math.min(1, -(drag.y - drag.oy) / 70));   // 往上拖＝爬升
+      x += Math.max(-1, Math.min(1, (drag.x - drag.ox) / 60));
+      y += Math.max(-1, Math.min(1, -(drag.y - drag.oy) / 60));   // 往上拖＝爬升
     }
-    const sm = (cur, tgt) => cur + (Math.max(-1, Math.min(1, tgt)) - cur) * Math.min(1, dt * 6);
+    if (sim.tilt) { x += tilt.x; y += tilt.y; }
+    // 瞄準輔助：玩家正在操控時，輕微把飛機拉向圓環
+    const steering = drag.active || sim.tilt || x || y;
+    if (steering && casual.ring) {
+      const r = casual.ring, rel = r.c.clone().sub(ac.pos);
+      const lat = rel.x * -r.n.z + rel.z * r.n.x;
+      x += Math.max(-0.35, Math.min(0.35, lat / 250));
+      y += Math.max(-0.35, Math.min(0.35, rel.y / 120));
+    }
+    const sm = (cur, tgt) => cur + (Math.max(-1, Math.min(1, tgt)) - cur) * Math.min(1, dt * 10);
     ap.assist.x = sm(ap.assist.x, x);
     ap.assist.y = sm(ap.assist.y, y);
     tapped.clear();
@@ -284,7 +339,19 @@ function updateCamera(dt) {
   const up = new THREE.Vector3(0, 1, 0).applyQuaternion(ac.quat);
   const mode = sim.camMode;
   ac.mesh.visible = mode !== 1;
-  if (mode === 0) {
+  if (mode === 0 && sim.casual && casual.stage === 'briefing') {
+    // 安全示範時鏡頭緩慢環繞，看看機場、停機坪與起飛的飛機
+    sim.briefT = (sim.briefT || 0) + dt;
+    // 鏡頭在飛機左後方，背景是右側的航廈與停機坪
+    const f = new THREE.Vector3(fwd.x, 0, fwd.z).normalize(), rgt = new THREE.Vector3(-f.z, 0, f.x);
+    const a = 0.5 + 0.55 * Math.sin(sim.briefT * 0.07);
+    const dist = 110;
+    camera.position.copy(ac.pos).addScaledVector(rgt, -dist * Math.cos(a)).addScaledVector(f, -dist * Math.sin(a));
+    camera.position.y = ac.pos.y + 30;
+    camera.up.set(0, 1, 0);
+    camera.lookAt(camTarget.copy(ac.pos).addScaledVector(f, 260).addScaledVector(rgt, 200).add(new THREE.Vector3(0, -10, 0)));
+    camInit = false;
+  } else if (mode === 0) {
     // 追蹤：位於飛機後上方，平滑跟隨航向
     const hdgFwd = new THREE.Vector3(fwd.x, 0, fwd.z).normalize();
     const desired = ac.pos.clone().addScaledVector(hdgFwd, -orbit.dist).add(new THREE.Vector3(0, orbit.dist * 0.18 + 3, 0));
@@ -354,9 +421,11 @@ function frame() {
     if (ap.msg) { if (!sim.casual) toast(ap.msg); ap.msg = ''; }
   }
   if (ac.crashed || ac.landed) showResult();
+  if (!sim.paused) traffic.update(Math.min(1, dt * (sim.started ? sim.timeScale : 1)));
   ac.syncMesh();
   updateCamera(dt);
   renderer.render(scene, camera);
+  sim.audio.update(ac.throttle, ac.vel.length(), sim.started && !sim.paused && !ac.crashed && !ac.landed);
   if (sim.casual) casual.drawHUD(hud, camera, drag, dt);
   else { hud.draw(ac, ap, sim); updatePanel(); }
 }

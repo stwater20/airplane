@@ -174,6 +174,39 @@
   .keys div { display: flex; justify-content: space-between; gap: 6px; padding: 3px 0; border-bottom: 0.5px solid var(--sep); }
   kbd { font: 600 11px var(--sf); background: var(--fill); border-radius: 5px; padding: 1px 5px; color: var(--label); }
 
+  .seg { display: flex; gap: 2px; padding: 2px; border-radius: 10px; background: var(--fill); margin-top: 16px; }
+  .seg button { flex: 1; border: 0; background: transparent; color: var(--label); font-size: 13px; font-weight: 500; padding: 7px 4px; border-radius: 8px; cursor: pointer; }
+  .seg button.on { background: rgba(255,255,255,0.22); box-shadow: 0 2px 6px rgba(0,0,0,0.2); font-weight: 600; }
+  .hangarRow { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 10px; padding: 11px 14px; border: 0; border-radius: 16px; background: var(--fill); color: var(--label); font-size: 15px; text-align: left; cursor: pointer; }
+  .hangarRow .ic { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; }
+  .hangarRow .ic svg { width: 18px; height: 18px; }
+  .hangarRow .txt { flex: 1; } .hangarRow small { display: block; color: var(--label2); font-size: 12px; margin-top: 1px; }
+  .hangarRow .chev { color: var(--label3); font-size: 22px; }
+  .twin { display: flex; gap: 10px; } .twin .btn { flex: 1; font-size: 15px; }
+  .stars { font-size: 44px; letter-spacing: 6px; margin-top: 4px; }
+  .stars span { color: rgba(255,255,255,0.18); display: inline-block; animation: pop .5s cubic-bezier(.2,1.6,.4,1) both; }
+  .stars span.on { color: var(--yellow); text-shadow: 0 0 18px rgba(255,214,10,0.6); }
+  @keyframes pop { from { transform: scale(0.2); opacity: 0; } }
+  .badge { display: inline-block; margin-top: 4px; padding: 4px 12px; border-radius: 999px; background: rgba(255,214,10,0.18); color: var(--yellow); font-weight: 700; font-size: 13px; }
+  .muted { color: var(--label3); font-size: 13px; margin-top: 4px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 14px 0 4px; }
+  .stats div { background: var(--fill); border-radius: 14px; padding: 8px 4px; }
+  .stats b { display: block; font: 700 18px var(--sfr); } .stats span { font-size: 11px; color: var(--label2); }
+  #livGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0 4px; }
+  .liv { border: 0; border-radius: 14px; background: var(--fill); color: var(--label); padding: 10px 4px 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; font-size: 12px; position: relative; }
+  .liv i { width: 34px; height: 34px; border-radius: 50%; box-shadow: inset 0 -4px 8px rgba(0,0,0,0.25); }
+  .liv em { position: absolute; top: 4px; right: 6px; font: 700 9px var(--sf); font-style: normal; }
+  .liv.locked i { filter: grayscale(1) brightness(0.35); }
+  .liv.locked span { color: var(--label3); }
+  .liv.sel { outline: 2px solid var(--blue); }
+  #spinOut { display: grid; place-items: center; min-height: 0; }
+  .capsule { height: 130px; display: grid; place-items: center; }
+  .capsule .ball { width: 84px; height: 84px; border-radius: 50%; background: linear-gradient(180deg, #ff453a 50%, #f2f2f7 50%); box-shadow: inset 0 -6px 12px rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.35); }
+  .capsule.shake .ball { animation: shake .25s ease-in-out infinite; }
+  @keyframes shake { 0%,100% { transform: rotate(-12deg); } 50% { transform: rotate(12deg); } }
+  .prize { display: flex; flex-direction: column; align-items: center; gap: 4px; animation: pop .5s cubic-bezier(.2,1.6,.4,1) both; }
+  .prize i { width: 64px; height: 64px; border-radius: 50%; background: var(--c); box-shadow: 0 0 30px var(--c); }
+  .prize em { font-style: normal; font-weight: 800; } .prize small { color: var(--label2); }
   #result .sheet { text-align: center; }
   #result h2 { font: 700 26px var(--sf); margin: 6px 0 8px; }
   #result p { color: var(--label2); line-height: 1.6; margin: 0; font-size: 15px; }
@@ -291,6 +324,13 @@
       <div class="row"><div class="ic" style="background:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></div>
         <div class="txt">真實機上廣播<small>塔台通話、空服員安全示範與英文語音</small></div></div>
     </div>
+    <div class="seg" role="radiogroup" aria-label="飛行時段">
+      <button data-tod="day">☀️ 白天</button><button data-tod="dawn">🌅 日出</button><button data-tod="night">🌙 夜晚</button><button data-tod="random">🎲 隨機</button>
+    </div>
+    <button class="hangarRow" data-open="hangar">
+      <span class="ic" style="background:var(--indigo)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-5 9 5v12"/><path d="M7 21v-6h10v6"/></svg></span>
+      <span class="txt">機庫與扭蛋<small>🪙 <span class="coinBal">0</span> ・ 最佳 <span class="bestVal">0</span> 分</small></span><span class="chev">›</span>
+    </button>
     <button class="btn primary" id="startBtn">開始飛行</button>
     <p class="foot">電腦可用方向鍵操控・手機可開啟傾斜操控</p>
     <details>
@@ -320,9 +360,12 @@
 <div id="result" class="overlay hidden">
   <div class="sheet">
     <div class="grabber"></div>
+    <div id="rStars"></div>
     <h2></h2>
     <p></p>
+    <div id="rExtra"></div>
     <button class="btn primary" id="againBtn">再飛一次</button>
+    <div class="twin"><button class="btn gray" id="shareBtn">分享成績</button><button class="btn gray" data-open="hangar">機庫・扭蛋</button></div>
     <a class="btn gacha" href="https://gacha-sho.sectools.tw/" target="_blank" rel="noopener">🎰 降落後來轉一顆資安航空扭蛋 ›</a>
     <button class="btn gray" data-c="menu">回主選單</button>
     <div class="links"><a href="https://sectools.tw/" target="_blank" rel="noopener">喜歡嗎？看看 sectools.tw 的更多作品</a></div>
@@ -330,6 +373,20 @@
 </div>
 
 <noscript><p style="padding:20px;color:#fff">飛向東京：桃園飛成田 3D 飛行模擬小遊戲，由 sectools.tw 製作與維護。請開啟 JavaScript 以遊玩。</p></noscript>
-<script type="module" src="js/main.js?v=20261101183653"></script>
+<div id="hangar" class="overlay hidden">
+  <div class="sheet">
+    <div class="grabber"></div>
+    <div class="eyebrow">資安航空扭蛋</div>
+    <h1 class="title" style="font-size:28px">機庫</h1>
+    <p class="subtitle">用飛行賺到的金幣轉扭蛋，收集限定塗裝。目前 🪙 <b class="coinBal">0</b> ・ 已收集 <b id="ownCount">1/8</b></p>
+    <div id="spinOut"></div>
+    <button class="btn primary" id="spinBtn">轉一次扭蛋</button>
+    <div id="livGrid"></div>
+    <a class="btn gacha" href="https://gacha-sho.sectools.tw/" target="_blank" rel="noopener">🎰 去玩真的資安航空扭蛋 ›</a>
+    <button class="btn gray" id="hangarClose">完成</button>
+  </div>
+</div>
+
+<script type="module" src="js/main.js?v=20261102182412"></script>
 </body>
 </html>

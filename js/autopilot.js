@@ -1,6 +1,6 @@
-import { ROUTE, toWorld } from './geo.js?v=20261101183653';
-import { runways, RUNWAY_Y, terrainHeight } from './world.js?v=20261101183653';
-import { GEAR_H } from './aircraft.js?v=20261101183653';
+import { ROUTE, toWorld } from './geo.js?v=20261102182412';
+import { runways, RUNWAY_Y, terrainHeight } from './world.js?v=20261102182412';
+import { GEAR_H } from './aircraft.js?v=20261102182412';
 
 const D2R = Math.PI / 180, R2D = 180 / Math.PI;
 const KT = 0.514444, FT = 0.3048;
@@ -98,9 +98,15 @@ export class Autopilot {
     const bankLim = this.vert === 'FLARE' ? 3 : (this.lat === 'LOC' ? 15 : 25);
     let bankT = clamp(herr * 2.0, -bankLim, bankLim) * D2R;
     // 玩家輸入：直接指定坡度（最多 35°），放開後自動駕駛再把飛機帶回航線
-    const ax = this.vert !== 'FLARE' ? this.assist.x * this.assistGain : 0;
+    let ax = this.vert !== 'FLARE' ? this.assist.x * this.assistGain : 0;
+    // 進場時別讓玩家把飛機帶離跑道太遠：離中心線超過 900m 時，忽略往外推的輸入
+    if (this.lat === 'LOC' && ils) {
+      const maxOff = clamp(ils.dist * 0.025, 20, 700);          // 越接近跑道，允許的偏移越小
+      if (Math.abs(ils.xtk) > maxOff && ax * ils.xtk > 0) ax = 0;
+      else if (Math.abs(ils.xtk) > maxOff * 0.6 && ax * ils.xtk > 0) ax *= 0.4;
+    }
     if (Math.abs(ax) > 0.03) bankT = bankT * (1 - Math.abs(ax)) + ax * 35 * D2R;
-    ac.input.roll = clamp((bankT - att.bank) * (Math.abs(ax) > 0.03 ? 3 : 1.6), -1, 1);
+    ac.input.roll = clamp((bankT - att.bank) * (Math.abs(ax) > 0.03 ? 2.2 : 1.6) - ac.omega.z * 0.0, -1, 1);
     ac.input.yaw = 0;
 
     // ── 縱向 ──
@@ -109,10 +115,18 @@ export class Autopilot {
       const altT = this.alt * FT;
       vsT = clamp((altT - h) * 0.06, -this.vsMax * 0.00508 * 0.9, this.vsMax * 0.00508);
       if (vsT > 0) vsT *= clamp((ias - (this.spd - 35)) / 20, 0.15, 1);  // 速度不足時減緩爬升
-      vsT += this.assist.y * this.assistGain * 12;
+      // 玩家上下輸入：直接指定升降率（約 ±3500 fpm），而不是只微調
+      let ay = this.assist.y * this.assistGain;
+      // 離地不足 300m 時，下降輸入逐漸失效（最低約 100m），避免玩家把飛機壓到地上
+      const aglA = h - Math.max(RUNWAY_Y, terrainHeight(ac.pos.x, ac.pos.z));
+      if (ay < 0) ay *= clamp((aglA - 100) / 200, 0, 1);
+      if (Math.abs(ay) > 0.05) vsT = clamp(vsT, -6, 6) * (1 - Math.abs(ay)) + ay * 18;
     } else if (this.vert === 'GS') {
       vsT = -ac.tas * Math.tan(3 * D2R) * Math.cos(0) + (ils.gsAlt - h) * 0.15;
-      vsT = clamp(vsT, -8, 2) + this.assist.y * this.assistGain * 6;
+      vsT = clamp(vsT, -8, 2);
+      let ayg = this.assist.y * this.assistGain;
+      if ((ayg > 0 && h - ils.gsAlt > 150) || (ayg < 0 && ils.gsAlt - h > 60)) ayg = 0;   // 偏離下滑道太多時不再加劇
+      if (Math.abs(ayg) > 0.05) vsT = vsT * (1 - Math.abs(ayg)) + ayg * 10;
       const ra = h - RUNWAY_Y;
       if (ra < 18) { this.vert = 'FLARE'; this.msg = 'FLARE'; }
     }
@@ -130,7 +144,8 @@ export class Autopilot {
       }
       return;
     }
-    ac.input.pitch = clamp((vsT - vs) * 0.025 - (ac.omega.x) * 0.0, -0.6, 0.6);
+    const manualV = Math.abs(this.assist.y * this.assistGain) > 0.05 && !(this.assist.y < 0 && this.vert === 'ALT' && h - Math.max(RUNWAY_Y, terrainHeight(ac.pos.x, ac.pos.z)) < 110) && !(this.vert === 'GS' && ((this.assist.y > 0 && h - ils.gsAlt > 150) || (this.assist.y < 0 && ils.gsAlt - h > 60)));
+    ac.input.pitch = manualV ? clamp((vsT - vs) * 0.06, -0.9, 0.9) : clamp((vsT - vs) * 0.025, -0.6, 0.6);
 
     // ── 自動油門 ──
     if (this.athr) {

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { COASTLINES, MOUNTAINS, AIRPORTS, EXTRA_CITIES, toWorld } from './geo.js?v=20261101183653';
+import { COASTLINES, MOUNTAINS, AIRPORTS, EXTRA_CITIES, toWorld } from './geo.js?v=20261102182412';
 
 export const RUNWAY_Y = 2.0;      // 跑道表面高度
 const LAND_Y = 1.0;
@@ -23,6 +23,39 @@ function noiseTexture(base, vary, size = 256, cells = 16, speckle = 0.15) {
   for (let k = 0; k < img.data.length; k += 4) {
     const n = (Math.random() - 0.5) * 255 * speckle;
     img.data[k] += n; img.data[k + 1] += n; img.data[k + 2] += n;
+  }
+  g.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+// 平滑分形雜訊貼圖（多層次田野、林地、裸土），比方塊雜訊自然
+function fbmTexture(size, stops, seed = 1) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  const img = g.createImageData(size, size);
+  const rnd = (x, y, o) => { const n = Math.sin(x * 127.1 + y * 311.7 + o * 74.7 + seed * 19.3) * 43758.5453; return n - Math.floor(n); };
+  const noise = (x, y, o, per) => {
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const w = (a) => ((a % per) + per) % per;
+    const a = rnd(w(xi), w(yi), o), b = rnd(w(xi + 1), w(yi), o), cc = rnd(w(xi), w(yi + 1), o), d = rnd(w(xi + 1), w(yi + 1), o);
+    return a + (b - a) * u + (cc - a) * v + (a - b - cc + d) * u * v;
+  };
+  const cols = stops.map(([t, hex]) => [t, new THREE.Color(hex)]);
+  const tmp = new THREE.Color();
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    let n = 0, amp = 0.5, f = 4;
+    for (let o = 0; o < 5; o++) { n += amp * noise(x / size * f, y / size * f, o, f); amp *= 0.5; f *= 2; }
+    let i = 0; while (i < cols.length - 2 && n > cols[i + 1][0]) i++;
+    const [t0, c0] = cols[i], [t1, c1] = cols[i + 1];
+    tmp.copy(c0).lerp(c1, Math.min(1, Math.max(0, (n - t0) / (t1 - t0))));
+    const k = (y * size + x) * 4;
+    img.data[k] = tmp.r * 255; img.data[k + 1] = tmp.g * 255; img.data[k + 2] = tmp.b * 255; img.data[k + 3] = 255;
   }
   g.putImageData(img, 0, 0);
   const tex = new THREE.CanvasTexture(c);
@@ -100,33 +133,95 @@ export function buildWorld(scene) {
   scene.add(sun);
   scene.add(sun.target);
 
-  // 天空穹頂（漸層）
-  const skyGeo = new THREE.SphereGeometry(1000, 32, 16);
+  // 天空穹頂：漸層＋太陽光暈＋夜晚星空
+  const skyGeo = new THREE.SphereGeometry(1000, 48, 24);
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color(0x2f6fc4) }, bottom: { value: new THREE.Color(0xbcd6f0) } },
+    uniforms: {
+      top: { value: new THREE.Color() }, bottom: { value: new THREE.Color() },
+      sunDir: { value: new THREE.Vector3(0, 1, 0) }, sunCol: { value: new THREE.Color() },
+      sunSize: { value: 1 }, stars: { value: 0 },
+    },
     vertexShader: 'varying vec3 vP; void main(){ vP = position; vec4 p = projectionMatrix * modelViewMatrix * vec4(position,1.0); gl_Position = p.xyww; }',
-    fragmentShader: 'uniform vec3 top; uniform vec3 bottom; varying vec3 vP; void main(){ float h = clamp(normalize(vP).y, 0.0, 1.0); gl_FragColor = vec4(mix(bottom, top, pow(h, 0.6)), 1.0); }',
+    fragmentShader: `
+      uniform vec3 top, bottom, sunDir, sunCol; uniform float sunSize, stars; varying vec3 vP;
+      float hash(vec3 p){ return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+      void main(){
+        vec3 d = normalize(vP);
+        float h = clamp(d.y, 0.0, 1.0);
+        vec3 col = mix(bottom, top, pow(h, 0.55));
+        if (d.y < 0.0) col = mix(bottom, bottom * 0.7, clamp(-d.y * 4.0, 0.0, 1.0));
+        float s = max(dot(d, sunDir), 0.0);
+        col += sunCol * (pow(s, 6.0) * 0.18 + pow(s, 60.0) * 0.45) * sunSize;
+        col += sunCol * smoothstep(0.99955, 0.9998, s) * 4.0;
+        if (stars > 0.0 && d.y > 0.02) {
+          vec3 c = floor(d * 380.0);
+          float st = step(0.9975, hash(c));
+          col += vec3(st * stars * (0.6 + 0.4 * hash(c + 1.0)));
+        }
+        gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
   });
   const sky = new THREE.Mesh(skyGeo, skyMat);
   sky.frustumCulled = false;
   sky.renderOrder = -1;
   scene.add(sky);
 
-  // 海洋
-  const seaTex = noiseTexture(new THREE.Color(0x1d4f7a), new THREE.Color(0x24608f), 256, 32, 0.08);
-  seaTex.repeat.set(4000, 4000);
-  const sea = new THREE.Mesh(
-    new THREE.PlaneGeometry(8e6, 8e6),
-    new THREE.MeshLambertMaterial({ map: seaTex }),
-  );
+  // 海洋：程式波浪法線＋菲涅耳反射＋太陽反光
+  const seaMat = new THREE.ShaderMaterial({
+    fog: true,
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
+      time: { value: 0 }, deep: { value: new THREE.Color() }, skyCol: { value: new THREE.Color() },
+      sunDir: { value: new THREE.Vector3(0, 1, 0) }, sunCol: { value: new THREE.Color() }, sunInt: { value: 1 },
+    }]),
+    vertexShader: `
+      #include <common>
+      #include <fog_pars_vertex>
+      #include <logdepthbuf_pars_vertex>
+      varying vec3 vW;
+      void main(){
+        vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz;
+        vec4 mvPosition = viewMatrix * w;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <logdepthbuf_vertex>
+        #include <fog_vertex>
+      }`,
+    fragmentShader: `
+      #include <common>
+      #include <fog_pars_fragment>
+      #include <logdepthbuf_pars_fragment>
+      uniform float time, sunInt; uniform vec3 deep, skyCol, sunDir, sunCol;
+      varying vec3 vW;
+      void main(){
+        #include <logdepthbuf_fragment>
+        vec2 p = vW.xz; float t = time;
+        vec2 d1 = normalize(vec2(1.0, 0.3)), d2 = normalize(vec2(-0.4, 1.0)), d3 = normalize(vec2(0.7, -0.8)), d4 = normalize(vec2(-1.0, -0.2));
+        vec2 g = d1 * cos(dot(d1, p) * 0.021 + t * 1.1) * 0.6 + d2 * cos(dot(d2, p) * 0.037 + t * 1.5) * 0.4
+               + d3 * cos(dot(d3, p) * 0.093 + t * 2.2) * 0.25 + d4 * cos(dot(d4, p) * 0.21 + t * 3.1) * 0.15;
+        vec3 V = normalize(cameraPosition - vW);
+        float dist = length(cameraPosition - vW);
+        float k = 0.32 * clamp(1800.0 / dist, 0.04, 1.0);
+        vec3 N = normalize(vec3(-g.x * k, 1.0, -g.y * k));
+        float fres = pow(1.0 - max(dot(N, V), 0.0), 4.0);
+        vec3 col = mix(deep, skyCol, 0.12 + 0.78 * fres);
+        vec3 R = reflect(-V, N);
+        float sd = max(dot(R, sunDir), 0.0);
+        col += sunCol * (pow(sd, 220.0) * 2.5 + pow(sd, 18.0) * 0.12) * sunInt;
+        gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <fog_fragment>
+      }`,
+  });
+  const sea = new THREE.Mesh(new THREE.PlaneGeometry(8e6, 8e6), seaMat);
   sea.rotation.x = -Math.PI / 2;
-  sea.position.set(0, 0, 0);
   scene.add(sea);
 
   // 陸地
-  const landTex = noiseTexture(new THREE.Color(0x4f7a3a), new THREE.Color(0x8c8a55), 256, 16, 0.12);
-  landTex.repeat.set(1 / 1500, 1 / 1500);
+  const landTex = fbmTexture(512, [[0.25, 0x4f8239], [0.42, 0x6a9a45], [0.52, 0x93ad59], [0.6, 0xb0ab72], [0.7, 0x83a052], [0.8, 0x4d7a3a]]);
+  landTex.repeat.set(1 / 6000, 1 / 6000);
   const landMat = new THREE.MeshLambertMaterial({ map: landTex });
   for (const pts of Object.values(COASTLINES)) {
     const shape = new THREE.Shape(pts.map(([lon, lat]) => {
@@ -146,22 +241,41 @@ export function buildWorld(scene) {
     scene.add(edge);
   }
 
-  // 山
-  const mtnMat = new THREE.MeshLambertMaterial({ color: 0x5b6e3e, flatShading: true });
-  const snowMat = new THREE.MeshLambertMaterial({ color: 0xf4f6fa, flatShading: true });
+  // 山：低多邊形山峰，有稜線起伏與高度分層顏色（綠坡 → 岩石 → 積雪）
+  const mtnMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  const cGreen = new THREE.Color(0x4a6e33), cGreen2 = new THREE.Color(0x5f7d3c), cRock = new THREE.Color(0x7a7262), cRock2 = new THREE.Color(0x8c877c), cSnow = new THREE.Color(0xf3f6fa);
   for (const [lon, lat, h, r, snow] of MOUNTAINS) {
     const w = toWorld(lon, lat);
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(r, h, 9, 1), mtnMat);
-    cone.position.set(w.x, h / 2, w.z);
-    cone.rotation.y = Math.random() * Math.PI;
-    scene.add(cone);
-    if (snow) {
-      const sh = h * 0.18;
-      const cap = new THREE.Mesh(new THREE.ConeGeometry(r * 0.18 * 1.02, sh, 9, 1), snowMat);
-      cap.position.set(w.x, h - sh / 2 + 5, w.z);
-      cap.rotation.y = cone.rotation.y;
-      scene.add(cap);
+    const geo = new THREE.ConeGeometry(r, h, 26, 9, true).toNonIndexed();
+    const pos = geo.attributes.position;
+    const seed = Math.random() * 100;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i);
+      const f = (v.y + h / 2) / h;                         // 0 山腳 → 1 山頂
+      const ang = Math.atan2(v.z, v.x);
+      const ridge = 1 + 0.22 * Math.sin(ang * 3 + seed) + 0.12 * Math.sin(ang * 7 + seed * 1.7) + 0.06 * Math.sin(ang * 13 + seed * 0.3);
+      const bulge = 1 + 0.25 * Math.sin(f * Math.PI);       // 山腰略為飽滿
+      v.x *= ridge * bulge; v.z *= ridge * bulge;
+      v.y += (Math.sin(ang * 5 + seed) * 0.03 + (Math.random() - 0.5) * 0.02) * h * (1 - f) * (f > 0.02 ? 1 : 0);
+      pos.setXYZ(i, v.x, v.y, v.z);
     }
+    const colors = new Float32Array(pos.count * 3);
+    const tmp = new THREE.Color();
+    for (let i = 0; i < pos.count; i += 3) {
+      // 以三角形平均高度上色，維持低多邊形風格
+      const fy = ((pos.getY(i) + pos.getY(i + 1) + pos.getY(i + 2)) / 3 + h / 2) / h;
+      const jitter = Math.random() * 0.08;
+      if (snow && fy > 0.74 + jitter) tmp.copy(cSnow);
+      else if (fy > 0.5 + jitter) tmp.copy(cRock).lerp(cRock2, Math.random());
+      else tmp.copy(cGreen).lerp(cGreen2, Math.random());
+      for (let k = 0; k < 3; k++) colors.set([tmp.r, tmp.g, tmp.b], (i + k) * 3);
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, mtnMat);
+    m.position.set(w.x, h / 2, w.z);
+    scene.add(m);
     mountains.push({ x: w.x, z: w.z, h, r });
   }
 
@@ -245,6 +359,7 @@ export function buildWorld(scene) {
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
   const col = new THREE.Color();
   let idx = 0;
+  const lightPts = [];
   const nearRunway = (x, z) => runways.some((r) => {
     const dx = x - r.cx, dz = z - r.cz;
     const along = dx * r.dirX + dz * r.dirZ;
@@ -263,6 +378,7 @@ export function buildWorld(scene) {
         s.set(30 + Math.random() * 50, h, 30 + Math.random() * 50);
       }
       p.set(x, LAND_Y, z);
+      if (s.x > 0 && i % 2 === 0) lightPts.push(x, LAND_Y + 6 + Math.random() * 20, z);
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * Math.PI);
       m4.compose(p, q, s);
       inst.setMatrixAt(idx, m4);
@@ -272,6 +388,12 @@ export function buildWorld(scene) {
     }
   }
   scene.add(inst);
+  // 夜晚城市燈光
+  const cityGeo = new THREE.BufferGeometry();
+  cityGeo.setAttribute('position', new THREE.Float32BufferAttribute(lightPts, 3));
+  const cityLights = new THREE.Points(cityGeo, new THREE.PointsMaterial({ color: 0xffcf85, size: 22, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }));
+  cityLights.visible = false;
+  scene.add(cityLights);
 
   // 雲（Instanced billboard）
   const a = toWorld(119, 22), b = toWorld(143, 38);
@@ -289,7 +411,7 @@ export function buildWorld(scene) {
   }
   const cloudMat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, fog: true,
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: null } }]),
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { map: { value: null }, lit: { value: new THREE.Color(1, 1, 1) }, shade: { value: new THREE.Color(0.75, 0.8, 0.88) } }]),
     vertexShader: `
       #include <common>
       #include <fog_pars_vertex>
@@ -308,12 +430,15 @@ export function buildWorld(scene) {
       #include <common>
       #include <fog_pars_fragment>
       #include <logdepthbuf_pars_fragment>
-      uniform sampler2D map;
+      uniform sampler2D map; uniform vec3 lit, shade;
       varying vec2 vUv;
       void main() {
         #include <logdepthbuf_fragment>
         vec4 c = texture2D(map, vUv);
-        gl_FragColor = vec4(c.rgb, c.a * 0.9);
+        vec3 col = mix(shade, lit, smoothstep(0.15, 0.85, vUv.y));   // 雲底較暗、雲頂受光
+        gl_FragColor = vec4(col, c.a * 0.9);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
         #include <fog_fragment>
       }`,
   });
@@ -324,7 +449,37 @@ export function buildWorld(scene) {
   clouds.frustumCulled = false;
   scene.add(clouds);
 
-  return { sun, sky };
+  const PRESETS = {
+    day: { top: 0x0f45a8, bottom: 0x9fc6ee, fog: 0x9cc0e6, sunDir: [-0.5, 1, 0.3], sunCol: 0xfff1d6, sunI: 2.4, sunSize: 0.6,
+      hemiSky: 0xdfefff, hemiGround: 0x445533, hemiI: 1.3, deep: 0x0d3554, lit: 0xffffff, shade: 0xb4c0d2, stars: 0, city: false, exposure: 1.0 },
+    dawn: { top: 0x24386f, bottom: 0xffb27a, fog: 0xeaa985, sunDir: [0.85, 0.1, -0.5], sunCol: 0xffa860, sunI: 2.0, sunSize: 1.3,
+      hemiSky: 0xffd2b0, hemiGround: 0x5a4a50, hemiI: 1.3, deep: 0x1a2440, lit: 0xffd3ad, shade: 0x8d6a86, stars: 0, city: true, exposure: 1.05 },
+    night: { top: 0x01030b, bottom: 0x0c1834, fog: 0x0b1530, sunDir: [-0.3, 0.55, -0.6], sunCol: 0x9fb4ff, sunI: 0.35, sunSize: 0.25,
+      hemiSky: 0x5a6a9a, hemiGround: 0x101018, hemiI: 0.45, deep: 0x040a18, lit: 0x39436a, shade: 0x161c33, stars: 1, city: true, exposure: 1.25 },
+  };
+  const env = {
+    sun, sky, sunDir: new THREE.Vector3(-0.5, 1, 0.3).normalize(), exposure: 1, mode: 'day',
+    setTime(mode) {
+      const P = PRESETS[mode] || PRESETS.day;
+      this.mode = mode;
+      this.sunDir.set(...P.sunDir).normalize();
+      skyMat.uniforms.top.value.set(P.top); skyMat.uniforms.bottom.value.set(P.bottom);
+      skyMat.uniforms.sunDir.value.copy(this.sunDir); skyMat.uniforms.sunCol.value.set(P.sunCol);
+      skyMat.uniforms.sunSize.value = P.sunSize; skyMat.uniforms.stars.value = P.stars;
+      scene.fog.color.set(P.fog); scene.background.set(P.bottom);
+      sun.color.set(P.sunCol); sun.intensity = P.sunI;
+      hemi.color.set(P.hemiSky); hemi.groundColor.set(P.hemiGround); hemi.intensity = P.hemiI;
+      seaMat.uniforms.deep.value.set(P.deep); seaMat.uniforms.skyCol.value.set(P.bottom);
+      seaMat.uniforms.sunDir.value.copy(this.sunDir); seaMat.uniforms.sunCol.value.set(P.sunCol); seaMat.uniforms.sunInt.value = P.sunI / 2.4;
+      cloudMat.uniforms.lit.value.set(P.lit); cloudMat.uniforms.shade.value.set(P.shade);
+      cityLights.visible = P.city;
+      cityLights.material.opacity = mode === 'night' ? 0.95 : 0.35;
+      this.exposure = P.exposure;
+    },
+    update(t) { seaMat.uniforms.time.value = t; },
+  };
+  env.setTime('day');
+  return env;
 }
 
 // 地表高度（陸地/海平面皆以 0 估算，山以錐體計算）

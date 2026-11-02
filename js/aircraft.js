@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RUNWAY_Y, terrainHeight, runwayAt } from './world.js?v=20261101183653';
+import { RUNWAY_Y, terrainHeight, runwayAt } from './world.js?v=20261102182412';
 
 // 單位：SI。機身座標：-Z 前、+Y 上、+X 右
 const G = 9.81;
@@ -239,7 +239,7 @@ export class Aircraft {
         // 低高度：姿態保持（起飛、拉平）
         target.x = inp.pitch * 0.08 * Math.min(1, eff);
       } else {
-        const nCmd = Math.cos(gamma) / cosB + inp.pitch * (inp.pitch > 0 ? 1.4 : 1.0);
+        const nCmd = Math.cos(gamma) / cosB + inp.pitch * (inp.pitch > 0 ? 1.4 : 1.25);
         const clReq = nCmd * MASS * G / Math.max(qbar * WING_AREA, 1);
         let aReq = (clReq - CL0 - flapCL) / CLA;
         aReq = THREE.MathUtils.clamp(aReq, -5 * Math.PI / 180, aStall - 2.5 * Math.PI / 180);

@@ -1,13 +1,14 @@
 import * as THREE from 'three';
-import { buildWorld, runways, terrainHeight } from './world.js?v=20261101183653';
-import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261101183653';
-import { Autopilot } from './autopilot.js?v=20261101183653';
-import { HUD } from './hud.js?v=20261101183653';
-import { Casual } from './casual.js?v=20261101183653';
-import { GameAudio } from './audio.js?v=20261101183653';
-import { SpeedFX } from './effects.js?v=20261101183653';
-import { Taoyuan } from './taoyuan.js?v=20261101183653';
-import { Traffic } from './traffic.js?v=20261101183653';
+import { buildWorld, runways, terrainHeight } from './world.js?v=20261102182412';
+import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261102182412';
+import { Autopilot } from './autopilot.js?v=20261102182412';
+import { HUD } from './hud.js?v=20261102182412';
+import { Casual } from './casual.js?v=20261102182412';
+import { GameAudio } from './audio.js?v=20261102182412';
+import { SpeedFX } from './effects.js?v=20261102182412';
+import { Taoyuan } from './taoyuan.js?v=20261102182412';
+import { progress, LIVERIES, GACHA_COST } from './progress.js?v=20261102182412';
+import { Traffic } from './traffic.js?v=20261102182412';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
@@ -17,7 +18,9 @@ document.getElementById('view').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.5, 2.5e6);
-const { sun, sky } = buildWorld(scene);
+const env = buildWorld(scene);
+const { sun, sky } = env;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
 const traffic = new Traffic(scene);
 const taoyuan = new Taoyuan(scene);
@@ -31,7 +34,7 @@ const startRunway = runways.find((r) => r.airport === 'TPE' && r.id.startsWith('
 ac.placeOnRunway(startRunway, -1);
 ap.hdg = startRunway.heading;
 
-const sim = { ac, ap, camera, taoyuan, timeScale: 1, paused: true, camMode: 0, started: false, casual: true, voice: true, tilt: false };
+const sim = { ac, ap, camera, taoyuan, env, timeScale: 1, paused: true, camMode: 0, started: false, casual: true, voice: true, tilt: false };
 sim.audio = new GameAudio();
 sim.runways = runways;
 window.__sim = sim;
@@ -221,6 +224,19 @@ function toast(msg) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
 }
 
+function applyLivery() {
+  const col = progress.livery().color;
+  ac.mesh.traverse((o) => { if (o.material?.userData?.livery) o.material.color.setHex(col); });
+}
+applyLivery();
+
+const TODS = ['day', 'dawn', 'night'];
+function pickTime() {
+  const t = progress.data.tod || 'day';
+  env.setTime(t === 'random' ? TODS[Math.floor(Math.random() * 3)] : t);
+}
+pickTime();
+
 function startGame(easy) {
   sim.casual = easy;
   document.body.classList.toggle('casual', easy);
@@ -232,6 +248,8 @@ function startGame(easy) {
   document.getElementById('menu').classList.add('hidden');
   if (easy && window.speechSynthesis) speechSynthesis.speak(new SpeechSynthesisUtterance(''));   // iOS 需在點擊時解鎖語音
   sim.audio.init();
+  pickTime(); applyLivery();
+  casual.short = progress.data.flights > 0;
   if (easy) { casual.reset(); casual.setStage('briefing', '空服員安全示範（可按「跳過」）'); } else toast('油門 R 推到 100%，速度 150 kt 時按 S/↓ 拉起');
 }
 document.getElementById('startBtn').addEventListener('click', () => startGame(true));
@@ -257,24 +275,102 @@ function restart() {
   sim.timeScale = 1;
   sim.resetCam = true;
   fx.reset();
-  if (sim.casual) { casual.reset(); casual.setStage('briefing'); sim.briefT = 0; }
+  if (sim.casual) { pickTime(); applyLivery(); casual.short = true; casual.reset(); casual.setStage('briefing'); sim.briefT = 0; }
   document.getElementById('result').classList.add('hidden');
   shownResult = false;
 }
 document.getElementById('againBtn').addEventListener('click', restart);
 
 let shownResult = false;
+let lastShare = '';
+document.getElementById('shareBtn').addEventListener('click', async () => {
+  const url = 'https://airplane.sectools.tw/';
+  try {
+    if (navigator.share) await navigator.share({ title: '飛向東京｜資安航空', text: lastShare, url });
+    else { await navigator.clipboard.writeText(`${lastShare} ${url}`); toast('已複製分享文字'); }
+  } catch { /* 使用者取消分享 */ }
+});
+
+// ───── 機庫：塗裝與資安航空扭蛋 ─────
+const RARITY_COL = { N: '#8e8e93', R: '#0a84ff', SR: '#bf5af2', SSR: '#ffd60a' };
+function refreshCoins() {
+  document.querySelectorAll('.coinBal').forEach((e) => { e.textContent = progress.data.coins.toLocaleString(); });
+  document.querySelectorAll('.bestVal').forEach((e) => { e.textContent = progress.data.best.toLocaleString(); });
+  const grid = document.getElementById('livGrid');
+  grid.innerHTML = LIVERIES.map((l) => {
+    const own = progress.data.owned.includes(l.id), sel = progress.data.livery === l.id;
+    return `<button class="liv ${own ? '' : 'locked'} ${sel ? 'sel' : ''}" data-liv="${l.id}" ${own ? '' : 'disabled'}>
+      <i style="background:#${l.color.toString(16).padStart(6, '0')}"></i><span>${own ? l.name : '？？？'}</span><em style="color:${RARITY_COL[l.rarity]}">${l.rarity}</em></button>`;
+  }).join('');
+  document.getElementById('ownCount').textContent = `${progress.data.owned.length}/${LIVERIES.length}`;
+  const spin = document.getElementById('spinBtn');
+  spin.disabled = progress.data.coins < GACHA_COST;
+  spin.textContent = progress.data.coins < GACHA_COST ? `金幣不足（需要 ${GACHA_COST}）` : `轉一次扭蛋（🪙 ${GACHA_COST}）`;
+}
+document.getElementById('livGrid').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-liv]');
+  if (!b) return;
+  progress.select(b.dataset.liv); applyLivery(); refreshCoins();
+});
+document.getElementById('spinBtn').addEventListener('click', () => {
+  sim.audio.init();
+  const r = progress.spin();
+  if (!r) return;
+  const out = document.getElementById('spinOut');
+  out.className = 'capsule shake';
+  out.innerHTML = '<div class="ball"></div>';
+  setTimeout(() => {
+    out.className = 'capsule open';
+    out.innerHTML = `<div class="prize" style="--c:#${r.got.color.toString(16).padStart(6, '0')}"><i></i><b>${r.got.name}</b>
+      <em style="color:${RARITY_COL[r.got.rarity]}">${r.got.rarity}</em><small>${r.dup ? '已擁有，退還 🪙100' : '新塗裝已套用！'}</small></div>`;
+    sim.audio.chime();
+    applyLivery(); refreshCoins();
+  }, 1100);
+});
+document.querySelectorAll('[data-open="hangar"]').forEach((b) => b.addEventListener('click', () => {
+  refreshCoins(); document.getElementById('spinOut').innerHTML = ''; document.getElementById('hangar').classList.remove('hidden');
+}));
+document.getElementById('hangarClose').addEventListener('click', () => document.getElementById('hangar').classList.add('hidden'));
+// 時段選擇
+document.querySelectorAll('[data-tod]').forEach((b) => {
+  b.classList.toggle('on', (progress.data.tod || 'day') === b.dataset.tod);
+  b.addEventListener('click', () => {
+    progress.data.tod = b.dataset.tod; progress.save();
+    document.querySelectorAll('[data-tod]').forEach((x) => x.classList.toggle('on', x === b));
+    pickTime();
+  });
+});
+refreshCoins();
 function showResult() {
   if (shownResult) return;
   shownResult = true;
   sim.timeScale = 1;
   const el = document.getElementById('result');
   const title = el.querySelector('h2'), body = el.querySelector('p');
+  document.getElementById('rExtra').innerHTML = '';
+  document.getElementById('rStars').innerHTML = '';
   if (sim.casual && !ac.crashed) {
     const vs = Math.round(ac.landed.vs);
     const [bonus, grade] = casual.landingBonus(vs);
-    title.textContent = '🛬 歡迎來到東京成田！';
-    body.innerHTML = `${grade}<br>圓環 ${casual.hits} / ${casual.total}（+${casual.score}）・ 落地 +${bonus}<br><b style="font-size:26px;color:#ffc83d">⭐ ${casual.score + bonus} 分</b>`;
+    const total = casual.score + bonus;
+    const stars = casual.stars(vs);
+    const coins = casual.coinsGot + Math.floor(total / 200);
+    const best = progress.finishFlight(total, coins);
+    title.textContent = '歡迎來到東京成田！';
+    body.innerHTML = `${grade}<b>${total.toLocaleString()}</b>`;
+    document.getElementById('rStars').innerHTML = `
+      <div class="stars">${[1, 2, 3].map((i) => `<span class="${i <= stars ? 'on' : ''}" style="animation-delay:${i * 0.18}s">★</span>`).join('')}</div>`;
+    document.getElementById('rExtra').innerHTML = `
+      ${best ? '<div class="badge">🏆 新紀錄！</div>' : `<div class="muted">最佳紀錄 ${progress.data.best.toLocaleString()}</div>`}
+      <div class="stats">
+        <div><b>${casual.hits}/${casual.total}</b><span>圓環</span></div>
+        <div><b>${casual.perfects}</b><span>PERFECT</span></div>
+        <div><b>×${casual.bestCombo || 0}</b><span>最高連擊</span></div>
+        <div><b>+${coins}</b><span>🪙 金幣</span></div>
+      </div>`;
+    lastShare = `我開資安航空從桃園飛到東京成田，拿到 ${'★'.repeat(stars)} ${total.toLocaleString()} 分！你也來試試 👉`;
+    document.getElementById('shareBtn').classList.remove('hidden');
+    refreshCoins();
   } else if (ac.crashed) {
     title.textContent = '💥 墜機';
     body.textContent = ac.crashReason;
@@ -286,6 +382,7 @@ function showResult() {
     title.textContent = '🛬 歡迎來到成田！';
     body.innerHTML = `${grade}<br>接地垂直速度 ${vs} fpm ・ 接地速度 ${Math.round(t.ias)} kt<br>跑道 ${t.rw.id} ・ 飛行時間 ${Math.floor(mins / 60)} 小時 ${mins % 60} 分`;
   }
+  if (!sim.casual || ac.crashed) document.getElementById('shareBtn').classList.add('hidden');
   el.classList.remove('hidden');
 }
 
@@ -296,24 +393,34 @@ let acc = 0;
 const camPos = new THREE.Vector3(), camTarget = new THREE.Vector3();
 const smoothCam = new THREE.Vector3();
 let camInit = false;
+let camRoll = 0;
 
 function readControls(dt) {
   const k = (...ks) => ks.some((x) => keys.has(x) || tapped.has(x));
   if (sim.casual) {
     let x = (k('d', 'arrowright') ? 1 : 0) - (k('a', 'arrowleft') ? 1 : 0);
     let y = (k('w', 'arrowup') ? 1 : 0) - (k('s', 'arrowdown') ? 1 : 0);
+    const portrait = innerHeight > innerWidth;
+    const R = sim.stickR = portrait ? 46 : 60;           // 直式手機：拇指移動距離小，搖桿更靈敏
     if (drag.active) {
-      x += Math.max(-1, Math.min(1, (drag.x - drag.ox) / 60));
-      y += Math.max(-1, Math.min(1, -(drag.y - drag.oy) / 60));   // 往上拖＝爬升
+      // 浮動搖桿：拇指拖超過範圍時，中心跟著移動，反向操作不用拖回原點
+      const dx = drag.x - drag.ox, dy = drag.y - drag.oy;
+      if (Math.abs(dx) > R) drag.ox = drag.x - Math.sign(dx) * R;
+      if (Math.abs(dy) > R) drag.oy = drag.y - Math.sign(dy) * R;
+      const dead = (v) => Math.sign(v) * Math.max(0, (Math.abs(v) - 0.08) / 0.92);
+      x += dead((drag.x - drag.ox) / R);
+      y += dead(-(drag.y - drag.oy) / R) * (portrait ? 0.8 : 1);   // 往上拖＝爬升
     }
     if (sim.tilt) { x += tilt.x; y += tilt.y; }
-    // 瞄準輔助：玩家正在操控時，輕微把飛機拉向圓環
+    // 瞄準輔助：操控時把飛機拉向圓環；直式手機高度輔助更強，玩家專心左右轉就好
     const steering = drag.active || sim.tilt || x || y;
     if (steering && casual.ring) {
       const r = casual.ring, rel = r.c.clone().sub(ac.pos);
       const lat = rel.x * -r.n.z + rel.z * r.n.x;
-      x += Math.max(-0.35, Math.min(0.35, lat / 250));
-      y += Math.max(-0.35, Math.min(0.35, rel.y / 120));
+      const latV = ac.vel.x * -r.n.z + ac.vel.z * r.n.x;           // 側向速度，用來阻尼避免左右來回晃
+      x += Math.max(-0.3, Math.min(0.3, lat / 250 - latV / 45));
+      const vk = portrait ? 0.7 : 0.4;
+      y += Math.max(-vk, Math.min(vk, rel.y / 70 - ac.vel.y / 30));
     }
     const sm = (cur, tgt) => cur + (Math.max(-1, Math.min(1, tgt)) - cur) * Math.min(1, dt * 10);
     ap.assist.x = sm(ap.assist.x, x);
@@ -362,11 +469,17 @@ function updateCamera(dt) {
     const hdgFwd = new THREE.Vector3(fwd.x, 0, fwd.z).normalize();
     const desired = ac.pos.clone().addScaledVector(hdgFwd, -orbit.dist).add(new THREE.Vector3(0, orbit.dist * 0.18 + 3, 0));
     if (!camInit || sim.resetCam || smoothCam.distanceTo(desired) > 800) { smoothCam.copy(desired); camInit = true; sim.resetCam = false; }
-    smoothCam.lerp(desired, Math.min(1, dt * 4 * Math.max(1, sim.timeScale)));
+    const ky = sim.casual && sim.timeScale <= 2 ? 1.6 : 4;          // 高度方向跟得慢一點，爬升／下降時飛機會在畫面上移動
+    const kk = Math.min(1, dt * 4 * Math.max(1, sim.timeScale));
+    const prevY = smoothCam.y;
+    smoothCam.lerp(desired, kk);
+    smoothCam.y = prevY + (desired.y - prevY) * Math.min(1, dt * ky * Math.max(1, sim.timeScale));
     camera.position.copy(smoothCam);
     camera.up.set(0, 1, 0);
     // 視線略往下，讓飛機位於畫面中上方、不被下方儀表遮住
     camera.lookAt(camTarget.copy(ac.pos).addScaledVector(hdgFwd, orbit.dist * 0.85).add(new THREE.Vector3(0, -orbit.dist * (!sim.casual ? 0.36 : camera.aspect < 1 ? -0.05 : 0.12), 0)));
+    // 鏡頭跟著坡度微微傾斜，轉彎更有感
+    if (sim.casual) { camRoll += (-ac.attitude().bank * 0.2 - camRoll) * Math.min(1, dt * 3); camera.rotateZ(camRoll); }
     // 直式手機：視線抬高，飛機在畫面下方、前方空間較多
   } else if (mode === 1) {
     camera.position.copy(ac.pos.clone().add(new THREE.Vector3(0, 1.6, -17.5).applyQuaternion(ac.quat)));
@@ -396,7 +509,7 @@ function updateCamera(dt) {
   const baseFov = camera.aspect < 1 ? 80 : 65;   // 直式手機視野放寬
   // 速度越快視野越寬，增加衝刺感
   const spd = ac.vel.length();
-  const wantFov = baseFov + Math.min(1, Math.max(0, (spd - 50) / 180)) * 7;
+  const wantFov = baseFov + Math.min(1, Math.max(0, (spd - 50) / 180)) * 7 + (sim.casual && casual.boostT > 0 ? 9 : 0);
   if (mode !== 3) camera.fov += (wantFov - camera.fov) * Math.min(1, dt * 2);
   // 起飛滾行與低空高速時輕微晃動
   if (mode !== 3 && sim.started && !sim.paused && sim.timeScale <= 4) {
@@ -408,7 +521,7 @@ function updateCamera(dt) {
   // 防止鏡頭鑽入地面
   camera.position.y = Math.max(camera.position.y, 1.5);
   sky.position.copy(camera.position);
-  sun.position.copy(camera.position).add(new THREE.Vector3(-0.5, 1, 0.3).multiplyScalar(1000));
+  sun.position.copy(camera.position).addScaledVector(env.sunDir, 1000);
   sun.target.position.copy(camera.position);
 }
 
@@ -438,8 +551,11 @@ function frame() {
   if (ac.crashed || ac.landed) showResult();
   if (!sim.paused) taoyuan.update(Math.min(0.1, dt * (sim.started ? Math.min(sim.timeScale, 4) : 1)), !sim.started || (sim.casual && ['briefing', 'takeoff'].includes(casual.stage)) || (!sim.casual && ac.onGround && !ac.touchdown));
   if (!sim.paused) traffic.update(Math.min(1, dt * (sim.started ? sim.timeScale : 1)));
+  env.update(clock.elapsedTime);
+  renderer.toneMappingExposure = env.exposure;
   ac.syncMesh();
   updateCamera(dt);
+  fx.dim = (env.mode === 'night' ? 0.35 : 1) * (sim.casual && casual.boostT > 0 ? 2.2 : 1);
   fx.update(ac, camera, dt, sim.started && !sim.paused ? dt * sim.timeScale : 0, sim.timeScale);
   renderer.render(scene, camera);
   sim.audio.update(ac.throttle, ac.vel.length(), sim.started && !sim.paused && !ac.crashed && !ac.landed);

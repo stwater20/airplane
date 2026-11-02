@@ -1,11 +1,11 @@
 // 輕鬆模式：自動起飛／巡航／降落，玩家只需拖曳讓飛機穿過金色圓環
 import * as THREE from 'three';
-import { RUNWAY_Y } from './world.js?v=20261101183653';
-import { GEAR_H } from './aircraft.js?v=20261101183653';
+import { RUNWAY_Y, terrainHeight } from './world.js?v=20261102182412';
+import { GEAR_H } from './aircraft.js?v=20261102182412';
 
 const D2R = Math.PI / 180, KT = 0.514444, FT = 0.3048;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const RINGS = { climb: 10, approach: 10 };
+const RINGS = { climb: 8, approach: 8 };   // 手機一局約 4 分鐘
 const HIT_R = 85;
 // 隨機偏移（左右隨機），讓玩家必須操控才能穿過
 const offset = (min, max) => (Math.random() < 0.5 ? -1 : 1) * (min + Math.random() * (max - min));
@@ -72,15 +72,23 @@ export class Casual {
     this.scene = scene; this.sim = sim; this.toast = toast;
     this.ringGeo = new THREE.TorusGeometry(60, 4, 8, 40);
     this.ringMat = new THREE.MeshBasicMaterial({ color: 0xffc83d, fog: false });
+    this.boostMat = new THREE.MeshBasicMaterial({ color: 0x40c8ff, fog: false });
+    this.coinGeo = new THREE.CylinderGeometry(7, 7, 1.6, 20); this.coinGeo.rotateX(Math.PI / 2);
+    this.coinMat = new THREE.MeshLambertMaterial({ color: 0xffc83d, emissive: 0x7a4f00 });
+    this.coins = [];
     this.reset();
   }
 
   reset() {
     if (this.ring) this.scene.remove(this.ring.mesh);
+    for (const c of this.coins || []) this.scene.remove(c);
+    this.coins = [];
+    this.combo = 0; this.mult = 1; this.perfects = 0; this.coinsGot = 0; this.boostT = 0; this.bestCombo = 0;
     this.ring = null;
     this.stage = 'briefing';
     this.sim.ac.rollRateMax = 0.5;
-    this.brief = BRIEFING.slice(); this.briefBusy = false;
+    this.brief = this.short ? [BRIEFING[0], BRIEFING[1], BRIEFING[BRIEFING.length - 1]] : BRIEFING.slice();
+    this.briefBusy = false;
     this.belt = true; this.subZh = '';
     this.score = 0; this.hits = 0; this.total = 0; this.spawned = 0;
     this.flash = 0; this.flashText = '';
@@ -194,9 +202,13 @@ export class Casual {
 
     if (this.stage === 'climb') {
       ap.assistGain = clamp((agl - 20) / 50, 0, 1);
+      // 地形保護：前方 20 秒內的山比飛機低不到 400m 時，忽略玩家輸入並拉高
+      const ahead = ac.pos.clone().addScaledVector(ac.vel, 20);
+      if (terrainHeight(ahead.x, ahead.z) > ac.pos.y - 400) { ap.assistGain = 0; ap.alt = Math.max(ap.alt, Math.ceil((terrainHeight(ahead.x, ahead.z) + 800) / FT / 1000) * 1000); }
       if (ias > 185 && ac.flaps > 1) ac.flaps = 1;
       if (ias > 210) ac.flaps = 0;
       this.rings();
+      this.updateCoins(dt);
       if (!this.ring && this.spawned >= RINGS.climb) {
         Object.assign(ap, { alt: 35000, spd: 290 });
         this.sim.timeScale = 64;
@@ -209,6 +221,8 @@ export class Casual {
       }
     } else if (this.stage === 'cruise') {
       ap.assistGain = 1;
+      this.cruiseT = (this.cruiseT || 0) + dt / Math.max(1, this.sim.timeScale);
+      if (this.cruiseT > 28) { this.cruiseT = 0; this.toApproach(); return; }   // 巡航自動快轉，避免一局太久
       const dest = ap.route[ap.route.length - 1];
       // 沿途觀光廣播（以通過的航路點判斷）
       if (ap.wp >= 3) this.say('meal', 'Ladies and gentlemen, we will now be serving dinner. Today we have chicken with rice, or beef noodles. Please let us know if you need anything.', 'cabin',
@@ -232,7 +246,8 @@ export class Casual {
         '我們正飛越紀伊半島，大阪在左側，大約三十分鐘後降落。');
       if (Math.hypot(dest.x - ac.pos.x, dest.z - ac.pos.z) < 70 * 1852) this.toApproach();
     } else if (this.stage === 'approach') {
-      ap.assistGain = clamp((agl - 25) / 150, 0, 1);
+      ap.assistGain = clamp((agl - 120) / 180, 0, 1);   // 120m 以下交給自動駕駛對正跑道
+      this.sim.timeScale = agl > 120 ? 1.6 : 1;   // 進場稍微加快，短五邊恢復正常速度
       const il = ap.ilsData(ac);
       if (il.dist < 7 * 1852) ac.flaps = 4;
       if (il.dist < 9 * 1852) this.say('fuji', 'Ladies and gentlemen, on a clear day you can see Mount Fuji out the left windows.', 'captain', '天氣晴朗時，從左側窗外可以看到富士山。');
@@ -246,6 +261,7 @@ export class Casual {
       if (raFt < 220 && this.prevRa >= 220) this.say('min', 'Minimums.', 'gpws');
       this.prevRa = raFt;
       this.rings();
+      this.updateCoins(dt);
     }
   }
 
@@ -253,8 +269,10 @@ export class Casual {
   toApproach() {
     const { ac, ap } = this;
     if (this.ring) { this.scene.remove(this.ring.mesh); this.ring = null; }
+    for (const c of this.coins) this.scene.remove(c);
+    this.coins = [];
     const r = ap.ilsRunway();
-    const d = 12 * 1852;
+    const d = 8 * 1852;
     const thrX = r.cx - r.dirX * r.halfLen, thrZ = r.cz - r.dirZ * r.halfLen;
     ac.onGround = false;
     ac.pos.set(thrX - r.dirX * d, RUNWAY_Y + 15 + d * Math.tan(3 * D2R) + GEAR_H, thrZ - r.dirZ * d);
@@ -269,13 +287,13 @@ export class Casual {
     if (window.speechSynthesis) speechSynthesis.cancel();
     for (const k of ['oki', 'yak', 'kii', 'belt', 'crz', 'meal', 'turb', 'smooth', 'duty', 'sec']) this.said.add(k);
     this.setBelt(true);
-    this.prevRa = 99999;
+    this.prevRa = 99999; this.cruiseT = 0;
     this.setStage('approach', '抵達成田！跟著圓環降落');
     this.say('app', `${CS}, Narita Approach. Cleared ILS runway three four left approach.`, 'atc');
     this.say('apprb', `Cleared ILS three four left, ${CS}.`, 'pilot');
     this.say('des', 'Ladies and gentlemen, this is your captain. We have started our approach into Tokyo Narita. Cabin crew, prepare for landing.', 'captain',
       '各位旅客，我是機長，我們已開始進場東京成田。空服員請準備降落。');
-    this.say('prep', 'Ladies and gentlemen, please return to your seat and fasten your seatbelt. Make sure your seat back is upright, your tray table is stowed, and your window shade is open. Thank you.', 'cabin',
+    if (!this.short) this.say('prep', 'Ladies and gentlemen, please return to your seat and fasten your seatbelt. Make sure your seat back is upright, your tray table is stowed, and your window shade is open. Thank you.', 'cabin',
       '各位旅客，請回到座位繫好安全帶，豎直椅背、收好餐桌並打開遮陽板，謝謝。');
   }
 
@@ -287,9 +305,23 @@ export class Casual {
     const s = rel.dot(r.n);
     if (r.prevS < 0 && s >= 0) {
       const off = rel.addScaledVector(r.n, -s).length();
-      this.resolve(off < HIT_R);
+      this.resolve(off < HIT_R, off);
     } else if (rel.length() > 6000) this.resolve(false);
     else r.prevS = s;
+  }
+
+  // 金幣：每幀檢查是否吃到、旋轉動畫
+  updateCoins(dt) {
+    if (this.boostT > 0) this.boostT -= dt;
+    for (let i = this.coins.length - 1; i >= 0; i--) {
+      const c = this.coins[i];
+      c.rotation.y += dt * 4;
+      if (c.position.distanceTo(this.ac.pos) < 32) {
+        this.scene.remove(c); this.coins.splice(i, 1);
+        this.coinsGot++; this.score += 10 * (this.boostT > 0 ? 2 : 1);
+        this.sim.audio?.coin();
+      }
+    }
   }
 
   spawn() {
@@ -299,14 +331,14 @@ export class Casual {
       const w = ap.route[ap.wp];
       const brg = Math.atan2(w.x - ac.pos.x, -(w.z - ac.pos.z));
       n = new THREE.Vector3(Math.sin(brg), 0, -Math.cos(brg));
-      const D = 2200, V = Math.max(60, ac.vel.length());
+      const D = 1600, V = Math.max(60, ac.vel.length());
       const side = new THREE.Vector3(-n.z, 0, n.x);
       c = ac.pos.clone().addScaledVector(n, D).addScaledVector(side, offset(70, 150));
       c.y = Math.max(250, Math.min(ac.pos.y + ac.vel.y * D / V, ap.alt * FT + GEAR_H) + offset(0, 45));
     } else {
       const il = ap.ilsData(this.ac);
       const r = il.r;
-      const d = il.dist - 1800;
+      const d = il.dist - 1500;
       if (d < 600) { this.spawned = RINGS.approach; return; }
       n = new THREE.Vector3(r.dirX, 0, r.dirZ);
       const side = new THREE.Vector3(-n.z, 0, n.x);
@@ -315,20 +347,57 @@ export class Casual {
       c.addScaledVector(side, offset(60, 140) * k);
       c.y = RUNWAY_Y + 15 + d * Math.tan(3 * D2R) + GEAR_H + offset(0, 35) * k;
     }
-    const mesh = new THREE.Mesh(this.ringGeo, this.ringMat);
+    const boost = this.total % 4 === 3;          // 每四個一個藍色加速環
+    const mesh = new THREE.Mesh(this.ringGeo, boost ? this.boostMat : this.ringMat);
     mesh.position.copy(c);
     mesh.lookAt(c.clone().add(n));
     this.scene.add(mesh);
-    this.ring = { c, n, mesh, prevS: this.ac.pos.clone().sub(c).dot(n) };
+    this.ring = { c, n, mesh, boost, prevS: this.ac.pos.clone().sub(c).dot(n) };
+    // 金幣軌跡：從前方一路引導到圓環中心
+    const start = ac.pos.clone().lerp(c, 0.35);
+    for (let k = 0; k < 7; k++) {
+      const f = (k + 1) / 8;
+      const coin = new THREE.Mesh(this.coinGeo, this.coinMat);
+      coin.position.copy(start).lerp(c, f);
+      coin.rotation.y = Math.atan2(n.x, n.z);
+      this.scene.add(coin);
+      this.coins.push(coin);
+    }
     this.spawned++; this.total++;
   }
 
-  resolve(hit) {
+  // 命中：連擊倍率（最高 ×5）、PERFECT（穿過中心）、加速環
+  resolve(hit, off = 999) {
+    const wasBoost = this.ring.boost;
     this.scene.remove(this.ring.mesh);
     this.ring = null;
-    if (hit) { this.hits++; this.score += 100; this.flashText = '+100'; try { navigator.vibrate?.(40); } catch {} this.sim.audio?.ding(); }
-    else this.flashText = '錯過';
+    for (const c of this.coins) this.scene.remove(c);
+    this.coins = [];
+    if (hit) {
+      this.hits++; this.combo++;
+      this.bestCombo = Math.max(this.bestCombo, this.combo);
+      this.mult = Math.min(5, this.combo);
+      const perfect = off < 30;
+      if (perfect) this.perfects++;
+      let pts = 100 * this.mult + (perfect ? 100 : 0);
+      if (this.boostT > 0) pts *= 2;
+      this.score += pts;
+      if (wasBoost) { this.boostT = 5; this.sim.audio?.boost(); }
+      this.flashText = `${perfect ? 'PERFECT ' : ''}+${pts}${this.mult > 1 ? `  ×${this.mult}` : ''}`;
+      this.flashCol = perfect ? '#64d2ff' : '#ffd60a';
+      try { navigator.vibrate?.(perfect ? [30, 40, 30] : 40); } catch { /* 不支援 */ }
+      this.sim.audio?.ding(this.mult);
+    } else {
+      this.combo = 0; this.mult = 1;
+      this.flashText = '錯過';
+      this.flashCol = '#ff6b6b';
+    }
     this.flash = 1;
+  }
+
+  stars(vs) {
+    const ratio = this.total ? this.hits / this.total : 0;
+    return 1 + (ratio >= 0.5 ? 1 : 0) + (ratio >= 0.8 && vs > -350 ? 1 : 0);
   }
 
   landingBonus(vs) {
@@ -368,13 +437,13 @@ export class Casual {
     }
 
     // 上方資訊（HTML 玻璃面板）
-    const alt = Math.max(0, Math.round((ac.pos.y - GEAR_H - RUNWAY_Y) / FT));
+    const alt = Math.max(0, Math.round(ac.pos.y - GEAR_H - RUNWAY_Y));   // 公尺
     const kmh = Math.round(Math.hypot(ac.vel.x, ac.vel.y, ac.vel.z) * 3.6);
     setText('hPts', String(this.score));
-    setText('hRings', `圓環 ${this.hits} / ${this.total}`);
+    setText('hRings', `${this.combo > 1 ? `🔥×${this.mult} · ` : ''}圓環 ${this.hits}/${this.total} · 🪙${this.coinsGot}`);
     setText('hKmh', String(kmh));
-    setText('hAlt', `高度 ${alt.toLocaleString()} ft${this.sim.timeScale > 1 ? ` · ${this.sim.timeScale}×` : ''}`);
-    if (setText('hStage', STAGE_TEXT[this.stage])) {
+    setText('hAlt', `高度 ${alt.toLocaleString()} 公尺${this.sim.timeScale > 1 ? ` · ${this.sim.timeScale}×` : ''}`);
+    if (setText('hStage', this.boostT > 0 ? `⚡ 加速中 雙倍分數 ${Math.ceil(this.boostT)}` : STAGE_TEXT[this.stage])) {
       const el = $('hStage'); el.classList.add('pop'); setTimeout(() => el.classList.remove('pop'), 350);
     }
     $('hBelt').classList.toggle('on', this.belt);
@@ -385,7 +454,7 @@ export class Casual {
       this.flash -= dt * 1.2;
       g.globalAlpha = Math.max(0, this.flash);
       g.font = font(small ? 34 : 44);
-      g.fillStyle = this.flashText === '錯過' ? '#ff8080' : '#ffc83d';
+      g.fillStyle = this.flashCol || '#ffd60a';
       g.fillText(this.flashText, W / 2, H * 0.35 - (1 - this.flash) * 40);
       g.globalAlpha = 1;
     }
@@ -426,10 +495,11 @@ export class Casual {
     }
 
     // 虛擬搖桿
+    const R = this.sim.stickR || 60;
     if (stick.active) {
       g.strokeStyle = 'rgba(255,255,255,0.4)'; g.lineWidth = 2;
-      g.beginPath(); g.arc(stick.ox, stick.oy, 70, 0, Math.PI * 2); g.stroke();
-      const dx = clamp(stick.x - stick.ox, -70, 70), dy = clamp(stick.y - stick.oy, -70, 70);
+      g.beginPath(); g.arc(stick.ox, stick.oy, R, 0, Math.PI * 2); g.stroke();
+      const dx = clamp(stick.x - stick.ox, -R, R), dy = clamp(stick.y - stick.oy, -R, R);
       g.fillStyle = 'rgba(79,227,255,0.55)';
       g.beginPath(); g.arc(stick.ox + dx, stick.oy + dy, 26, 0, Math.PI * 2); g.fill();
     }

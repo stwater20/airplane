@@ -47,7 +47,7 @@ export class SpeedFX {
 
     // ── 氣流線 ──
     const show = speed > 35 && timeScale <= 4;
-    const target = show ? Math.min(0.42, (speed - 35) / 200) : 0;
+    const target = show ? Math.min(0.42, (speed - 35) / 200) * (this.dim ?? 1) : 0;
     this.streakMat.opacity += (target - this.streakMat.opacity) * Math.min(1, dtReal * 3);
     this.streaks.visible = this.streakMat.opacity > 0.01;
     if (this.streaks.visible) {

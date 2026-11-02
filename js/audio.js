@@ -100,12 +100,32 @@ export class GameAudio {
     this.tone(1046, t + 0.45, 1.1, 0.18);
   }
 
-  // 穿過圓環
-  ding() {
+  // 穿過圓環：連擊越高音越高
+  ding(mult = 1) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    this.tone(1568, t, 0.25, 0.1);
-    this.tone(2093, t + 0.07, 0.35, 0.08);
+    const k = Math.pow(2, (Math.min(mult, 5) - 1) * 2 / 12);
+    this.tone(1568 * k, t, 0.25, 0.1);
+    this.tone(2093 * k, t + 0.07, 0.35, 0.08);
+  }
+
+  // 吃到金幣
+  coin() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.tone(1976, t, 0.08, 0.05);
+    this.tone(2637, t + 0.05, 0.18, 0.05);
+  }
+
+  // 加速：向上滑音
+  boost() {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(880, t + 0.5);
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1800;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.08, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+    o.connect(f); f.connect(g); g.connect(this.master); o.start(t); o.stop(t + 0.65);
   }
 
   tone(freq, t, dur, vol) {

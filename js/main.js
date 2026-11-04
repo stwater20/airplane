@@ -1,15 +1,16 @@
 import * as THREE from 'three';
-import { buildWorld, runways, terrainHeight } from './world.js?v=20261104213638';
-import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261104213638';
-import { Autopilot } from './autopilot.js?v=20261104213638';
-import { HUD } from './hud.js?v=20261104213638';
-import { Casual } from './casual.js?v=20261104213638';
-import { GameAudio } from './audio.js?v=20261104213638';
-import { SpeedFX } from './effects.js?v=20261104213638';
-import { Taoyuan } from './taoyuan.js?v=20261104213638';
-import { progress, LIVERIES, GACHA_COST } from './progress.js?v=20261104213638';
-import { Terrain } from './terrain.js?v=20261104213638';
-import { Traffic } from './traffic.js?v=20261104213638';
+import { buildWorld, runways, terrainHeight } from './world.js?v=20261104214437';
+import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261104214437';
+import { Autopilot } from './autopilot.js?v=20261104214437';
+import { HUD } from './hud.js?v=20261104214437';
+import { Casual } from './casual.js?v=20261104214437';
+import { GameAudio } from './audio.js?v=20261104214437';
+import { SpeedFX } from './effects.js?v=20261104214437';
+import { Taoyuan } from './taoyuan.js?v=20261104214437';
+import { Boarding } from './boarding.js?v=20261104214437';
+import { progress, LIVERIES, GACHA_COST, ACHIEVEMENTS, todaySeed, todayKey } from './progress.js?v=20261104214437';
+import { Terrain } from './terrain.js?v=20261104214437';
+import { Traffic } from './traffic.js?v=20261104214437';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
@@ -27,6 +28,7 @@ const terrain = new Terrain(scene);
 terrain.load().then(() => env.useTerrain((x, z) => terrain.heightAt(x, z))).catch((e) => console.warn('真實地形載入失敗，使用手工地形', e));
 const traffic = new Traffic(scene);
 const taoyuan = new Taoyuan(scene);
+const boarding = new Boarding(scene);
 const fx = new SpeedFX(scene);
 const ac = new Aircraft();
 scene.add(ac.mesh);
@@ -37,7 +39,7 @@ const startRunway = runways.find((r) => r.airport === 'TPE' && r.id.startsWith('
 ac.placeOnRunway(startRunway, -1);
 ap.hdg = startRunway.heading;
 
-const sim = { ac, ap, camera, taoyuan, env, terrain, timeScale: 1, paused: true, camMode: 0, started: false, casual: true, voice: true, tilt: false };
+const sim = { ac, ap, camera, taoyuan, env, terrain, boarding, timeScale: 1, paused: true, camMode: 0, started: false, casual: true, voice: true, tilt: false };
 sim.audio = new GameAudio();
 sim.runways = runways;
 window.__sim = sim;
@@ -219,6 +221,16 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+sim.fade = (cb) => {
+  const f = document.getElementById('fade');
+  f.classList.add('on');
+  setTimeout(() => { cb(); setTimeout(() => f.classList.remove('on'), 150); }, 480);
+};
+function achieve(id) {
+  const a = progress.unlock(id);
+  if (a) { setTimeout(() => toast(`🏆 成就解鎖：${a.name}`), 400); sim.audio.chime(); }
+}
+
 let toastTimer;
 function toast(msg) {
   const el = document.getElementById('toast');
@@ -226,6 +238,35 @@ function toast(msg) {
   el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+}
+
+// 拍照：把當下畫面加上浮水印，可分享或下載
+function takePhoto() {
+  renderer.render(scene, camera);
+  const src = renderer.domElement;
+  const w = src.width, h = src.height;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.drawImage(src, 0, 0);
+  const k = w / 1000;
+  g.fillStyle = 'rgba(0,0,0,0.45)'; g.fillRect(0, h - 64 * k, w, 64 * k);
+  g.fillStyle = '#fff'; g.font = `600 ${22 * k}px -apple-system, "PingFang TC", sans-serif`; g.textBaseline = 'middle';
+  g.fillText('✈️ 資安航空 SecTools Airlines・桃園 → 東京成田', 20 * k, h - 32 * k);
+  g.textAlign = 'right'; g.font = `${18 * k}px -apple-system, sans-serif`; g.fillStyle = '#9fd3ff';
+  g.fillText('airplane.sectools.tw', w - 20 * k, h - 32 * k);
+  document.getElementById('flash').classList.remove('on'); void document.getElementById('flash').offsetWidth;
+  document.getElementById('flash').classList.add('on');
+  sim.audio.shutter();
+  achieve('photo');
+  c.toBlob(async (blob) => {
+    const file = new File([blob], `sectools-airlines-${Date.now()}.jpg`, { type: 'image/jpeg' });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: '資安航空', text: '我在資安航空飛向東京 ✈️ https://airplane.sectools.tw/' }); return; }
+    } catch { /* 取消分享時改為下載 */ }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    toast('照片已儲存');
+  }, 'image/jpeg', 0.9);
 }
 
 function applyLivery() {
@@ -241,7 +282,7 @@ function pickTime() {
 }
 pickTime();
 
-function startGame(easy) {
+function startGame(easy, daily = false) {
   sim.casual = easy;
   document.body.classList.toggle('casual', easy);
   document.body.classList.toggle('pro', !easy);
@@ -252,18 +293,27 @@ function startGame(easy) {
   document.getElementById('menu').classList.add('hidden');
   if (easy && window.speechSynthesis) speechSynthesis.speak(new SpeechSynthesisUtterance(''));   // iOS 需在點擊時解鎖語音
   sim.audio.init();
-  pickTime(); applyLivery();
+  sim.daily = daily;
+  casual.daily = daily ? todaySeed() : 0;
+  if (daily) env.setTime(['day', 'dawn', 'night'][todaySeed() % 3]); else pickTime();
+  applyLivery();
   casual.short = progress.data.flights > 0;
-  if (easy) { casual.reset(); casual.setStage('briefing', '空服員安全示範（可按「跳過」）'); } else toast('油門 R 推到 100%，速度 150 kt 時按 S/↓ 拉起');
+  if (easy) { casual.reset(); casual.setStage(casual.stage, daily ? '📅 今日挑戰開始！' : casual.stage === 'boarding' ? '乘客登機中…（可按「跳過」）' : '空服員安全示範（可按「跳過」）'); } else toast('油門 R 推到 100%，速度 150 kt 時按 S/↓ 拉起');
 }
 document.getElementById('startBtn').addEventListener('click', () => startGame(true));
 document.getElementById('proBtn').addEventListener('click', () => startGame(false));
+document.getElementById('dailyBtn').addEventListener('click', () => startGame(true, true));
+{
+  const d = progress.data.daily;
+  if (d && d.date === todayKey() && d.best) document.getElementById('dailyInfo').textContent = `今天最佳 ${d.best.toLocaleString()} 分・每天固定的圓環路線`;
+}
 document.querySelectorAll('[data-c]').forEach((b) => b.addEventListener('click', () => {
   const c = b.dataset.c;
   if (c === 'cam') cycleCam();
   if (c === 'skip') { if (casual.stage === 'cruise') casual.toApproach(); else if (casual.stage === 'briefing') casual.skipBriefing(); }
   if (c === 'music') { sim.audio.musicOn = !sim.audio.musicOn; b.classList.toggle('off', !sim.audio.musicOn); }
   if (c === 'tilt') toggleTilt(b);
+  if (c === 'photo') takePhoto();
   if (c === 'pause') { sim.paused = !sim.paused; b.classList.toggle('paused', sim.paused); }
   if (c === 'menu') location.reload();
   if (c === 'voice') {
@@ -279,7 +329,7 @@ function restart() {
   sim.timeScale = 1;
   sim.resetCam = true;
   fx.reset();
-  if (sim.casual) { pickTime(); applyLivery(); casual.short = true; casual.reset(); casual.setStage('briefing'); sim.briefT = 0; }
+  if (sim.casual) { if (!sim.daily) pickTime(); applyLivery(); casual.short = true; casual.reset(); casual.setStage(casual.stage); sim.briefT = 0; }
   document.getElementById('result').classList.add('hidden');
   shownResult = false;
 }
@@ -307,6 +357,11 @@ function refreshCoins() {
       <i style="background:#${l.color.toString(16).padStart(6, '0')}"></i><span>${own ? l.name : '？？？'}</span><em style="color:${RARITY_COL[l.rarity]}">${l.rarity}</em></button>`;
   }).join('');
   document.getElementById('ownCount').textContent = `${progress.data.owned.length}/${LIVERIES.length}`;
+  document.getElementById('achCount').textContent = `${progress.data.ach.length}/${ACHIEVEMENTS.length}`;
+  document.getElementById('achList').innerHTML = ACHIEVEMENTS.map((a) => {
+    const got = progress.data.ach.includes(a.id);
+    return `<div class="${got ? '' : 'lock'}"><b>${got ? '🏆' : '🔒'}</b><span>${a.name}<small>${a.desc}</small></span></div>`;
+  }).join('');
   const spin = document.getElementById('spinBtn');
   spin.disabled = progress.data.coins < GACHA_COST;
   spin.textContent = progress.data.coins < GACHA_COST ? `金幣不足（需要 ${GACHA_COST}）` : `轉一次扭蛋（🪙 ${GACHA_COST}）`;
@@ -328,6 +383,8 @@ document.getElementById('spinBtn').addEventListener('click', () => {
     out.innerHTML = `<div class="prize" style="--c:#${r.got.color.toString(16).padStart(6, '0')}"><i></i><b>${r.got.name}</b>
       <em style="color:${RARITY_COL[r.got.rarity]}">${r.got.rarity}</em><small>${r.dup ? '已擁有，退還 🪙100' : '新塗裝已套用！'}</small></div>`;
     sim.audio.chime();
+    if (progress.data.owned.length >= 4) achieve('collector');
+    if (r.got.id === 'gold') achieve('ssr');
     applyLivery(); refreshCoins();
   }, 1100);
 });
@@ -366,23 +423,37 @@ function showResult() {
   if (sim.casual && !ac.crashed) {
     const vs = Math.round(ac.landed.vs);
     const [bonus, grade] = casual.landingBonus(vs);
-    const total = casual.score + bonus;
+    const comfortBonus = Math.round(casual.comfort * 5);
+    const total = casual.score + bonus + comfortBonus;
     const stars = casual.stars(vs);
     const coins = casual.coinsGot + Math.floor(total / 200);
     const best = progress.finishFlight(total, coins);
+    const dailyBest = sim.daily ? progress.dailyBest(total) : false;
+    if (vs > -300) sim.audio.applause(vs > -150 ? 5 : 3);
+    achieve('first');
+    if (vs > -150) achieve('butter');
+    if (casual.bestCombo >= 10) achieve('combo10');
+    if (casual.total && casual.hits === casual.total) achieve('allrings');
+    if (casual.perfects >= 5) achieve('perfect5');
+    if (env.mode === 'night') achieve('night');
+    if (env.mode === 'dawn') achieve('dawn');
+    if (sim.daily) achieve('daily');
+    if (progress.data.flights >= 10) achieve('veteran');
+    if (casual.comfort >= 95) achieve('comfort');
     title.textContent = '歡迎來到東京成田！';
-    body.innerHTML = `${grade}<b>${total.toLocaleString()}</b>`;
+    body.innerHTML = `${grade}・乘客滿意 +${comfortBonus}<b>${total.toLocaleString()}</b>`;
     document.getElementById('rStars').innerHTML = `
       <div class="stars">${[1, 2, 3].map((i) => `<span class="${i <= stars ? 'on' : ''}" style="animation-delay:${i * 0.18}s">★</span>`).join('')}</div>`;
     document.getElementById('rExtra').innerHTML = `
-      ${best ? '<div class="badge">🏆 新紀錄！</div>' : `<div class="muted">最佳紀錄 ${progress.data.best.toLocaleString()}</div>`}
+      ${sim.daily ? `<div class="badge">📅 今日挑戰${dailyBest ? ' 新紀錄！' : `・今天最佳 ${progress.data.daily.best.toLocaleString()}`}</div>` : best ? '<div class="badge">🏆 新紀錄！</div>' : `<div class="muted">最佳紀錄 ${progress.data.best.toLocaleString()}</div>`}
       <div class="stats">
         <div><b>${casual.hits}/${casual.total}</b><span>圓環</span></div>
         <div><b>${casual.perfects}</b><span>PERFECT</span></div>
         <div><b>×${casual.bestCombo || 0}</b><span>最高連擊</span></div>
+        <div><b>${Math.round(casual.comfort)}%</b><span>😊 乘客滿意</span></div>
         <div><b>+${coins}</b><span>🪙 金幣</span></div>
       </div>`;
-    lastShare = `我開資安航空從桃園飛到東京成田，拿到 ${'★'.repeat(stars)} ${total.toLocaleString()} 分！你也來試試 👉`;
+    lastShare = `${sim.daily ? `📅 今日挑戰（${todayKey()}）` : ''}我開資安航空從桃園飛到東京成田，拿到 ${'★'.repeat(stars)} ${total.toLocaleString()} 分！你也來試試 👉`;
     document.getElementById('shareBtn').classList.remove('hidden');
     refreshCoins();
   } else if (ac.crashed) {
@@ -466,7 +537,21 @@ function updateCamera(dt) {
   const up = new THREE.Vector3(0, 1, 0).applyQuaternion(ac.quat);
   const mode = sim.camMode;
   ac.mesh.visible = mode !== 1;
-  if (mode === 0 && sim.casual && casual.stage === 'briefing') {
+  if (sim.casual && (casual.stage === 'boarding' || casual.stage === 'taxi')) {
+    // 登機：從停機坪側面看著乘客走上登機梯
+    sim.boardCamT = (sim.boardCamT || 0) + dt;
+    const b = boarding;
+    // 從步行路線（巴士 → 登機梯 → 機門）的側面拍，整條路線與機門都入鏡
+    const mid = b.path[0].clone().lerp(b.path[2], 0.55);
+    const L = b.path[1].clone().sub(b.path[0]).setY(0).normalize();
+    let P = new THREE.Vector3(-L.z, 0, L.x);
+    if (P.dot(mid.clone().sub(ac.pos)) < 0) P.negate();
+    const sw = Math.sin(sim.boardCamT * 0.15);
+    camera.position.copy(mid).addScaledVector(P, 34).addScaledVector(L, sw * 8).setY(mid.y + 11);
+    camera.up.set(0, 1, 0);
+    camera.lookAt(mid.x, mid.y + 3, mid.z);
+    camInit = false;
+  } else if (mode === 0 && sim.casual && casual.stage === 'briefing') {
     // 安全示範時鏡頭緩慢環繞，看看機場、停機坪與起飛的飛機
     sim.briefT = (sim.briefT || 0) + dt;
     // 鏡頭在飛機左後方，背景是右側的航廈與停機坪
@@ -528,7 +613,7 @@ function updateCamera(dt) {
   // 起飛滾行與低空高速時輕微晃動
   if (mode !== 3 && sim.started && !sim.paused && sim.timeScale <= 4) {
     const agl = ac.pos.y - GEAR_H - 2;
-    const k = (ac.onGround ? Math.min(1, spd / 70) * 0.12 : agl < 300 ? Math.min(1, spd / 150) * 0.05 : 0);
+    const k = (ac.onGround ? Math.min(1, spd / 70) * 0.12 : agl < 300 ? Math.min(1, spd / 150) * 0.05 : 0) + (sim.casual && casual.turbT > 0 ? 0.45 : 0);
     if (k > 0) camera.position.add(new THREE.Vector3((Math.random() - 0.5) * k, (Math.random() - 0.5) * k, (Math.random() - 0.5) * k));
   }
   camera.updateProjectionMatrix();

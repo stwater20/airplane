@@ -139,6 +139,34 @@ export class GameAudio {
     o.start(t); o.stop(t + dur + 0.05);
   }
 
+  // 乘客鼓掌：許多短促的濾波噪音拍手聲
+  applause(sec = 4) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    if (!this.clapBuf) {
+      const len = Math.floor(ctx.sampleRate * 0.04);
+      this.clapBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const d = this.clapBuf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (len * 0.18));
+    }
+    const n = Math.floor(sec * 70);
+    for (let i = 0; i < n; i++) {
+      const t = t0 + Math.random() * sec * Math.random() ** 0.3;   // 開頭密集、漸漸稀疏
+      const src = ctx.createBufferSource(); src.buffer = this.clapBuf;
+      const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900 + Math.random() * 1600; f.Q.value = 1.2;
+      const g = ctx.createGain(); g.gain.value = 0.05 + Math.random() * 0.06;
+      src.connect(f); f.connect(g); g.connect(this.master);
+      src.start(t);
+    }
+  }
+
+  // 快門聲
+  shutter() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.tone(2400, t, 0.04, 0.08); this.tone(1200, t + 0.06, 0.05, 0.06);
+  }
+
   suspend() { this.ctx?.suspend(); }
   resume() { this.ctx?.resume(); }
 }

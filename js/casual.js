@@ -1,16 +1,19 @@
 // 輕鬆模式：自動起飛／巡航／降落，玩家只需拖曳讓飛機穿過金色圓環
 import * as THREE from 'three';
-import { RUNWAY_Y, terrainHeight } from './world.js?v=20261104213638';
-import { GEAR_H } from './aircraft.js?v=20261104213638';
+import { RUNWAY_Y, terrainHeight } from './world.js?v=20261104214437';
+import { GEAR_H } from './aircraft.js?v=20261104214437';
 
 const D2R = Math.PI / 180, KT = 0.514444, FT = 0.3048;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const RINGS = { climb: 8, approach: 8 };   // 手機一局約 4 分鐘
 const HIT_R = 85;
 // 隨機偏移（左右隨機），讓玩家必須操控才能穿過
-const offset = (min, max) => (Math.random() < 0.5 ? -1 : 1) * (min + Math.random() * (max - min));
+const offset = (min, max, rnd = Math.random) => (rnd() < 0.5 ? -1 : 1) * (min + rnd() * (max - min));
+// 可重現的亂數（今日挑戰：每天所有人圓環位置相同）
+export function seeded(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
 const STAGE_TEXT = {
+  boarding: '🧳 乘客登機中',
   briefing: '👩‍✈️ 安全示範中…',
   takeoff: '起飛中…準備！',
   climb: '穿過金色圓環！',
@@ -32,6 +35,7 @@ const SPEAKER = {
   captain: ['🎙️ 機長廣播', '#ffffff'],
   cabin: ['👩‍✈️ 空服員', '#ffb3d1'],
   gpws: ['🔊 自動語音', '#ffb52e'],
+  gate: ['🎫 登機門廣播', '#a0e0ff'],
 };
 // 盡量挑性別合適的英文語音（各裝置可用語音不同）
 const FEMALE = /samantha|karen|victoria|zira|susan|moira|tessa|serena|allison|ava|female|google us english/i;
@@ -39,7 +43,7 @@ const MALE = /daniel|alex|fred|david|tom|aaron|mark|male|google uk english male/
 function pickVoice(who, idx) {
   const v = speechSynthesis.getVoices().filter((x) => x.lang.startsWith('en'));
   if (!v.length) return null;
-  const want = who === 'cabin' ? FEMALE : (who === 'captain' || who === 'pilot') ? MALE : null;
+  const want = (who === 'cabin' || who === 'gate') ? FEMALE : (who === 'captain' || who === 'pilot') ? MALE : null;
   const m = want && v.find((x) => want.test(x.name));
   return m || v[idx % v.length];
 }
@@ -65,6 +69,7 @@ const VOICE = {
   pilot: { voice: 2, rate: 1.1, pitch: 1.05 }, crew: { voice: 2, rate: 1.05, pitch: 1.05 },
   captain: { voice: 1, rate: 0.95, pitch: 1 }, cabin: { voice: 3, rate: 0.95, pitch: 1.1 },
   gpws: { voice: 0, rate: 1.0, pitch: 0.7 },
+  gate: { voice: 3, rate: 1.0, pitch: 1.05 },
 };
 
 export class Casual {
@@ -83,9 +88,12 @@ export class Casual {
     if (this.ring) this.scene.remove(this.ring.mesh);
     for (const c of this.coins || []) this.scene.remove(c);
     this.coins = [];
+    this.rnd = this.daily ? seeded(this.daily) : Math.random;
+    this.comfort = 100; this.turbT = 0; this.turbDone = {}; this.steadyOK = false;
     this.combo = 0; this.mult = 1; this.perfects = 0; this.coinsGot = 0; this.boostT = 0; this.bestCombo = 0;
     this.ring = null;
-    this.stage = 'briefing';
+    this.stage = this.short ? 'briefing' : 'boarding';   // 第二次起不再播登機
+    this.boardT = 0;
     this.sim.ac.rollRateMax = 0.5;
     this.brief = this.short ? [BRIEFING[0], BRIEFING[1], BRIEFING[BRIEFING.length - 1]] : BRIEFING.slice();
     this.briefBusy = false;
@@ -124,8 +132,26 @@ export class Casual {
     this.sim.audio?.chime();
   }
 
+  // 登機完成：淡出、滑行到跑道（直接切換），開始安全示範
+  endBoarding() {
+    if (this.stage !== 'boarding') return;
+    this.stage = 'taxi';
+    const go = () => {
+      this.sim.boarding?.stop();
+      const rw = this.sim.boarding?.rw || this.sim.runways.find((r) => r.id.startsWith('05R'));
+      this.sim.ac.placeOnRunway(rw, -1);
+      this.sim.resetCam = true; this.sim.briefT = 0;
+      this.setStage('briefing', '登機完成，滑行到跑道 05R');
+    };
+    if (this.sim.fade) this.sim.fade(go); else go();
+  }
+
   // 跳過安全示範
   skipBriefing() {
+    if (this.stage === 'boarding') {
+      if (window.speechSynthesis) speechSynthesis.cancel();
+      this.endBoarding(); return;
+    }
     if (this.stage !== 'briefing') return;
     if (window.speechSynthesis) speechSynthesis.cancel();
     this.brief = []; this.briefBusy = false;
@@ -159,6 +185,25 @@ export class Casual {
         this.say('wel', `Ladies and gentlemen, welcome to Tokyo Narita International Airport. The local time is ${tokyo}. Please remain seated with your seatbelt fastened until the captain turns off the seatbelt sign. Thank you for flying SecTools Airlines.`, 'cabin',
           `各位旅客，歡迎來到東京成田國際機場，當地時間 ${new Date().toLocaleTimeString('zh-TW', { timeZone: 'Asia/Tokyo', hour: 'numeric', minute: '2-digit' })}。在安全帶指示燈熄滅前請留在座位上，感謝您搭乘資安航空。`);
       }
+      return;
+    }
+
+    if (this.stage === 'boarding') {
+      const b = this.sim.boarding;
+      if (!b) { this.endBoarding(); return; }
+      ac.brakes = true; ac.throttle = 0;
+      this.sim.timeScale = 1;
+      if (this.boardT === 0) {
+        b.start(ac);
+        this.say('gate', 'Good afternoon, ladies and gentlemen. SecTools Airlines flight one two three to Tokyo Narita is now boarding. Please have your boarding pass and passport ready.', 'gate',
+          '各位旅客午安，資安航空 123 號班機飛往東京成田，現在開始登機，請準備好登機證與護照。');
+        this.say('seat', 'Welcome aboard. Please find your seat and place your carry-on bags in the overhead bins.', 'cabin', '歡迎登機，請找到您的座位，並將隨身行李放入上方置物櫃。');
+      }
+      this.boardT += dt;
+      b.update(dt);
+      const dur = this.short ? 9 : 16;
+      this.boarded = Math.min(b.total, Math.round(b.total * this.boardT / dur));
+      if (this.boardT > dur + 1) this.endBoarding();
       return;
     }
 
@@ -200,6 +245,8 @@ export class Casual {
       return;
     }
 
+    if (['climb', 'cruise', 'approach'].includes(this.stage)) this.passengers(dt, att);
+
     if (this.stage === 'climb') {
       ap.assistGain = clamp((agl - 20) / 50, 0, 1);
       // 地形保護：前方 20 秒內的山比飛機低不到 400m 時，忽略玩家輸入並拉高
@@ -209,6 +256,7 @@ export class Casual {
       if (ias > 210) ac.flaps = 0;
       this.rings();
       this.updateCoins(dt);
+      if (this.spawned === 4) this.startTurbulence('climb', 7);
       if (!this.ring && this.spawned >= RINGS.climb) {
         Object.assign(ap, { alt: 35000, spd: 290 });
         this.sim.timeScale = 64;
@@ -250,6 +298,7 @@ export class Casual {
       this.sim.timeScale = agl > 120 ? 1.6 : 1;   // 進場稍微加快，短五邊恢復正常速度
       const il = ap.ilsData(ac);
       if (il.dist < 7 * 1852) ac.flaps = 4;
+      if (this.spawned === 2) this.startTurbulence('app', 5);
       if (il.dist < 9 * 1852) this.say('fuji', 'Ladies and gentlemen, on a clear day you can see Mount Fuji out the left windows.', 'captain', '天氣晴朗時，從左側窗外可以看到富士山。');
       if (il.dist < 7.5 * 1852) this.say('ccl', 'Cabin crew, please take your seats for landing.', 'captain', '空服員請就座，準備降落。');
       if (il.dist < 6 * 1852) {
@@ -310,6 +359,38 @@ export class Casual {
     else r.prevS = s;
   }
 
+  // 乘客滿意度（參考 Airline Commander）：大 G 值、大坡度、劇烈滾轉會讓乘客不舒服；平穩飛行慢慢恢復
+  passengers(dt, att) {
+    const ac = this.ac;
+    if (this.stage === 'cruise') dt = Math.min(dt, 1 / 60);   // 快轉時不要放大扣分
+    const g = Math.abs(ac.gLoad - 1), bank = Math.abs(att.bank), rr = Math.abs(ac.omega.z);
+    let hurt = Math.max(0, g - 0.3) * 30 + Math.max(0, bank - 0.55) * 25 + Math.max(0, rr - 0.3) * 18;
+    // 亂流：飛機顛簸，玩家若在亂流中大動作操控會更不舒服
+    if (this.turbT > 0) {
+      this.turbT -= dt;
+      ac.omega.x += (Math.random() - 0.5) * 0.9 * dt * 60 * 0.004;
+      ac.omega.z += (Math.random() - 0.5) * 1.4 * dt * 60 * 0.004;
+      ac.vel.y += (Math.random() - 0.5) * 3.2 * dt * 60 * 0.05;
+      const busy = Math.abs(this.ap.assist.x) + Math.abs(this.ap.assist.y);
+      if (busy > 0.6) { hurt += 6; this.steadyOK = false; }
+      if (this.turbT <= 0) {
+        this.setBelt(false);
+        if (this.steadyOK) { this.score += 200; this.flashText = '穩住了！+200'; this.flashCol = '#30d158'; this.flash = 1; }
+      }
+    }
+    this.comfort = Math.max(0, Math.min(100, this.comfort - hurt * dt + (hurt < 0.1 ? 0.6 * dt : 0)));
+  }
+
+  startTurbulence(id, sec) {
+    if (this.turbDone[id]) return;
+    this.turbDone[id] = true;
+    this.turbT = sec; this.steadyOK = true;
+    this.setBelt(true);
+    this.say('turbx' + id, 'Ladies and gentlemen, we are passing through some turbulence. Please remain seated with your seatbelt fastened.', 'captain',
+      '各位旅客，我們正通過亂流區，請留在座位上並繫好安全帶。');
+    this.toast('🌪️ 亂流！穩住別亂動，乘客會更安心');
+  }
+
   // 金幣：每幀檢查是否吃到、旋轉動畫
   updateCoins(dt) {
     if (this.boostT > 0) this.boostT -= dt;
@@ -333,8 +414,8 @@ export class Casual {
       n = new THREE.Vector3(Math.sin(brg), 0, -Math.cos(brg));
       const D = 1600, V = Math.max(60, ac.vel.length());
       const side = new THREE.Vector3(-n.z, 0, n.x);
-      c = ac.pos.clone().addScaledVector(n, D).addScaledVector(side, offset(70, 150));
-      c.y = Math.max(250, Math.min(ac.pos.y + ac.vel.y * D / V, ap.alt * FT + GEAR_H) + offset(0, 45));
+      c = ac.pos.clone().addScaledVector(n, D).addScaledVector(side, offset(70, 150, this.rnd));
+      c.y = Math.max(250, Math.min(ac.pos.y + ac.vel.y * D / V, ap.alt * FT + GEAR_H) + offset(0, 45, this.rnd));
     } else {
       const il = ap.ilsData(this.ac);
       const r = il.r;
@@ -344,8 +425,8 @@ export class Casual {
       const side = new THREE.Vector3(-n.z, 0, n.x);
       const k = clamp((d - 1500) / 8000, 0, 1);
       c = new THREE.Vector3(r.cx - r.dirX * (r.halfLen + d), 0, r.cz - r.dirZ * (r.halfLen + d));
-      c.addScaledVector(side, offset(60, 140) * k);
-      c.y = RUNWAY_Y + 15 + d * Math.tan(3 * D2R) + GEAR_H + offset(0, 35) * k;
+      c.addScaledVector(side, offset(60, 140, this.rnd) * k);
+      c.y = RUNWAY_Y + 15 + d * Math.tan(3 * D2R) + GEAR_H + offset(0, 35, this.rnd) * k;
     }
     const boost = this.total % 4 === 3;          // 每四個一個藍色加速環
     const mesh = new THREE.Mesh(this.ringGeo, boost ? this.boostMat : this.ringMat);
@@ -443,10 +524,15 @@ export class Casual {
     setText('hRings', `${this.combo > 1 ? `🔥×${this.mult} · ` : ''}圓環 ${this.hits}/${this.total} · 🪙${this.coinsGot}`);
     setText('hKmh', String(kmh));
     setText('hAlt', `高度 ${alt.toLocaleString()} 公尺${this.sim.timeScale > 1 ? ` · ${this.sim.timeScale}×` : ''}`);
-    if (setText('hStage', this.boostT > 0 ? `⚡ 加速中 雙倍分數 ${Math.ceil(this.boostT)}` : STAGE_TEXT[this.stage])) {
+    const stageLabel = this.boostT > 0 ? `⚡ 加速中 雙倍分數 ${Math.ceil(this.boostT)}`
+      : this.stage === 'boarding' ? `🧳 登機中 ${this.boarded || 0} / 180` : (STAGE_TEXT[this.stage] || '');
+    if (setText('hStage', stageLabel)) {
       const el = $('hStage'); el.classList.add('pop'); setTimeout(() => el.classList.remove('pop'), 350);
     }
     $('hBelt').classList.toggle('on', this.belt);
+    const cf = Math.round(this.comfort);
+    if (setText('hComfort', `${cf >= 80 ? '😊' : cf >= 50 ? '😐' : '😣'} 乘客 ${cf}%`)) $('hComfortWrap').classList.toggle('bad', cf < 50);
+    $('hComfortWrap').classList.toggle('turb', this.turbT > 0);
     g.textAlign = 'center';
 
     // 命中提示

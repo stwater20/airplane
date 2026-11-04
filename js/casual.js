@@ -1,7 +1,7 @@
 // 輕鬆模式：自動起飛／巡航／降落，玩家只需拖曳讓飛機穿過金色圓環
 import * as THREE from 'three';
-import { RUNWAY_Y, terrainHeight } from './world.js?v=20261104184102';
-import { GEAR_H } from './aircraft.js?v=20261104184102';
+import { RUNWAY_Y, terrainHeight } from './world.js?v=20261104213638';
+import { GEAR_H } from './aircraft.js?v=20261104213638';
 
 const D2R = Math.PI / 180, KT = 0.514444, FT = 0.3048;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -460,7 +460,7 @@ export class Casual {
     }
 
     // 操作提示
-    if ((this.stage === 'climb' || this.stage === 'approach') && !stick.active && this.total <= 1) {
+    if ((this.stage === 'climb' || this.stage === 'approach') && !stick.active && this.total <= 1 && this.sim.ctrl !== 'buttons') {
       g.font = font(15, 'normal'); g.fillStyle = 'rgba(255,255,255,0.9)';
       g.fillText(small ? '👆 按住拖曳操控' : '👆 按住螢幕拖曳：左右轉彎、上下爬升／下降', W / 2, H - (small ? 278 : 120) - safeBottom());
     }
@@ -468,6 +468,13 @@ export class Casual {
     // 廣播字幕（標示說話者＋中文翻譯）
     if (this.subT > 0) this.subT -= dt;
     const showSub = this.subT > 0 && !!this.subtitle;
+    // 字幕放在上方資訊列（含安全帶圖示）下方，依實際高度自動調整，避免擋住
+    this.layoutT = (this.layoutT || 0) - dt;
+    if (this.layoutT <= 0) {
+      this.layoutT = 0.5;
+      const b = $('chud').getBoundingClientRect().bottom;
+      if (b > 0) $('hSub').style.top = `${Math.round(b + 8)}px`;
+    }
     $('hSub').classList.toggle('show', showSub);
     if (showSub) {
       const [name, col] = SPEAKER[this.speaker] || SPEAKER.captain;
@@ -487,7 +494,7 @@ export class Casual {
     }
 
     // 搖桿位置提示（未觸控時）
-    if (!stick.active && (this.stage === 'climb' || this.stage === 'approach') && W < 600) {
+    if (!stick.active && (this.stage === 'climb' || this.stage === 'approach') && W < 600 && this.sim.ctrl !== 'buttons') {
       const gx = W / 2, gy = H - 215 - safeBottom();
       g.strokeStyle = 'rgba(255,255,255,0.22)'; g.lineWidth = 2;
       g.beginPath(); g.arc(gx, gy, 46, 0, Math.PI * 2); g.stroke();

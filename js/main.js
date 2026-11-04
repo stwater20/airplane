@@ -1,15 +1,15 @@
 import * as THREE from 'three';
-import { buildWorld, runways, terrainHeight } from './world.js?v=20261104184102';
-import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261104184102';
-import { Autopilot } from './autopilot.js?v=20261104184102';
-import { HUD } from './hud.js?v=20261104184102';
-import { Casual } from './casual.js?v=20261104184102';
-import { GameAudio } from './audio.js?v=20261104184102';
-import { SpeedFX } from './effects.js?v=20261104184102';
-import { Taoyuan } from './taoyuan.js?v=20261104184102';
-import { progress, LIVERIES, GACHA_COST } from './progress.js?v=20261104184102';
-import { Terrain } from './terrain.js?v=20261104184102';
-import { Traffic } from './traffic.js?v=20261104184102';
+import { buildWorld, runways, terrainHeight } from './world.js?v=20261104213638';
+import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261104213638';
+import { Autopilot } from './autopilot.js?v=20261104213638';
+import { HUD } from './hud.js?v=20261104213638';
+import { Casual } from './casual.js?v=20261104213638';
+import { GameAudio } from './audio.js?v=20261104213638';
+import { SpeedFX } from './effects.js?v=20261104213638';
+import { Taoyuan } from './taoyuan.js?v=20261104213638';
+import { progress, LIVERIES, GACHA_COST } from './progress.js?v=20261104213638';
+import { Terrain } from './terrain.js?v=20261104213638';
+import { Traffic } from './traffic.js?v=20261104213638';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
@@ -118,6 +118,7 @@ const view = renderer.domElement;
 const drag = { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0 };
 view.style.touchAction = 'none';
 view.addEventListener('pointerdown', (e) => {
+  if (sim.casual && sim.ctrl === 'buttons') return;   // 按鈕模式不使用拖曳
   if (sim.casual) {
     Object.assign(drag, { active: true, id: e.pointerId, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY });
     view.setPointerCapture(e.pointerId);
@@ -144,9 +145,9 @@ document.querySelectorAll('[data-key]').forEach((b) => {
   const hold = b.dataset.hold !== undefined;
   b.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    if (hold) keys.add(k); else dispatchEvent(new KeyboardEvent('keydown', { key: k }));
+    if (hold) { keys.add(k); b.classList.add('held'); try { b.setPointerCapture(e.pointerId); } catch { /* 舊瀏覽器 */ } } else dispatchEvent(new KeyboardEvent('keydown', { key: k }));
   });
-  if (hold) for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, () => keys.delete(k));
+  if (hold) for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, () => { keys.delete(k); b.classList.remove('held'); });
 });
 const stick = document.getElementById('stick');
 if (stick) {
@@ -334,6 +335,16 @@ document.querySelectorAll('[data-open="hangar"]').forEach((b) => b.addEventListe
   refreshCoins(); document.getElementById('spinOut').innerHTML = ''; document.getElementById('hangar').classList.remove('hidden');
 }));
 document.getElementById('hangarClose').addEventListener('click', () => document.getElementById('hangar').classList.add('hidden'));
+// 操控方式：拖曳／按鈕
+function setCtrl(mode) {
+  sim.ctrl = mode;
+  progress.data.ctrl = mode; progress.save();
+  document.body.classList.toggle('btnmode', mode === 'buttons');
+  document.querySelectorAll('[data-ctrl]').forEach((x) => x.classList.toggle('on', x.dataset.ctrl === mode));
+}
+setCtrl(progress.data.ctrl || 'drag');
+document.querySelectorAll('[data-ctrl]').forEach((b) => b.addEventListener('click', () => setCtrl(b.dataset.ctrl)));
+
 // 時段選擇
 document.querySelectorAll('[data-tod]').forEach((b) => {
   b.classList.toggle('on', (progress.data.tod || 'day') === b.dataset.tod);

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { COASTLINES, MOUNTAINS, AIRPORTS, EXTRA_CITIES, toWorld } from './geo.js?v=20261102182412';
+import { COASTLINES, MOUNTAINS, AIRPORTS, EXTRA_CITIES, toWorld } from './geo.js?v=20261104184102';
 
 export const RUNWAY_Y = 2.0;      // 跑道表面高度
 const LAND_Y = 1.0;
@@ -121,6 +121,9 @@ function softSprite() {
   return t;
 }
 
+// 手工地形（真實地形載入失敗時的備援）
+const legacy = { land: [], mountains: [], cities: null, cityLights: null };
+
 export function buildWorld(scene) {
   // 天空與霧
   scene.background = new THREE.Color(0x8fbbe8);
@@ -233,12 +236,14 @@ export function buildWorld(scene) {
     const m = new THREE.Mesh(geo, landMat);
     m.position.y = LAND_Y;
     scene.add(m);
+    legacy.land.push(m);
     // 海灘邊
     const edge = new THREE.LineLoop(
       new THREE.BufferGeometry().setFromPoints(pts.map(([lon, lat]) => { const w = toWorld(lon, lat); return new THREE.Vector3(w.x, LAND_Y + 0.5, w.z); })),
       new THREE.LineBasicMaterial({ color: 0xd9cf9a }),
     );
     scene.add(edge);
+    legacy.land.push(edge);
   }
 
   // 山：低多邊形山峰，有稜線起伏與高度分層顏色（綠坡 → 岩石 → 積雪）
@@ -274,6 +279,7 @@ export function buildWorld(scene) {
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
     const m = new THREE.Mesh(geo, mtnMat);
+    legacy.mountains.push(m);
     m.position.set(w.x, h / 2, w.z);
     scene.add(m);
     mountains.push({ x: w.x, z: w.z, h, r });
@@ -388,11 +394,13 @@ export function buildWorld(scene) {
     }
   }
   scene.add(inst);
+  legacy.cities = inst;
   // 夜晚城市燈光
   const cityGeo = new THREE.BufferGeometry();
   cityGeo.setAttribute('position', new THREE.Float32BufferAttribute(lightPts, 3));
   const cityLights = new THREE.Points(cityGeo, new THREE.PointsMaterial({ color: 0xffcf85, size: 22, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }));
   cityLights.visible = false;
+  legacy.cityLights = cityLights;
   scene.add(cityLights);
 
   // 雲（Instanced billboard）
@@ -477,13 +485,30 @@ export function buildWorld(scene) {
       this.exposure = P.exposure;
     },
     update(t) { seaMat.uniforms.time.value = t; },
+    // 真實地形就緒：隱藏手工陸地與山，把建築與城市燈光放到地形高度上
+    useTerrain(heightAt) {
+      provider = heightAt;
+      for (const m of [...legacy.land, ...legacy.mountains]) m.visible = false;
+      const inst = legacy.cities, mm = new THREE.Matrix4(), pp = new THREE.Vector3(), qq = new THREE.Quaternion(), ss = new THREE.Vector3();
+      for (let i = 0; i < inst.count; i++) {
+        inst.getMatrixAt(i, mm); mm.decompose(pp, qq, ss);
+        pp.y = heightAt(pp.x, pp.z) + 0.5;
+        inst.setMatrixAt(i, mm.compose(pp, qq, ss));
+      }
+      inst.instanceMatrix.needsUpdate = true;
+      const lp = legacy.cityLights.geometry.attributes.position;
+      for (let i = 0; i < lp.count; i++) lp.setY(i, heightAt(lp.getX(i), lp.getZ(i)) + 12 + (i % 7) * 3);
+      lp.needsUpdate = true;
+    },
   };
   env.setTime('day');
   return env;
 }
 
 // 地表高度（陸地/海平面皆以 0 估算，山以錐體計算）
+let provider = null;
 export function terrainHeight(x, z) {
+  if (provider) return provider(x, z);
   let h = 0;
   for (const m of mountains) {
     const d = Math.hypot(x - m.x, z - m.z);

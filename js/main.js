@@ -1,14 +1,15 @@
 import * as THREE from 'three';
-import { buildWorld, runways, terrainHeight } from './world.js?v=20261102182412';
-import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261102182412';
-import { Autopilot } from './autopilot.js?v=20261102182412';
-import { HUD } from './hud.js?v=20261102182412';
-import { Casual } from './casual.js?v=20261102182412';
-import { GameAudio } from './audio.js?v=20261102182412';
-import { SpeedFX } from './effects.js?v=20261102182412';
-import { Taoyuan } from './taoyuan.js?v=20261102182412';
-import { progress, LIVERIES, GACHA_COST } from './progress.js?v=20261102182412';
-import { Traffic } from './traffic.js?v=20261102182412';
+import { buildWorld, runways, terrainHeight } from './world.js?v=20261104184102';
+import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261104184102';
+import { Autopilot } from './autopilot.js?v=20261104184102';
+import { HUD } from './hud.js?v=20261104184102';
+import { Casual } from './casual.js?v=20261104184102';
+import { GameAudio } from './audio.js?v=20261104184102';
+import { SpeedFX } from './effects.js?v=20261104184102';
+import { Taoyuan } from './taoyuan.js?v=20261104184102';
+import { progress, LIVERIES, GACHA_COST } from './progress.js?v=20261104184102';
+import { Terrain } from './terrain.js?v=20261104184102';
+import { Traffic } from './traffic.js?v=20261104184102';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
@@ -22,6 +23,8 @@ const env = buildWorld(scene);
 const { sun, sky } = env;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
+const terrain = new Terrain(scene);
+terrain.load().then(() => env.useTerrain((x, z) => terrain.heightAt(x, z))).catch((e) => console.warn('真實地形載入失敗，使用手工地形', e));
 const traffic = new Traffic(scene);
 const taoyuan = new Taoyuan(scene);
 const fx = new SpeedFX(scene);
@@ -34,7 +37,7 @@ const startRunway = runways.find((r) => r.airport === 'TPE' && r.id.startsWith('
 ac.placeOnRunway(startRunway, -1);
 ap.hdg = startRunway.heading;
 
-const sim = { ac, ap, camera, taoyuan, env, timeScale: 1, paused: true, camMode: 0, started: false, casual: true, voice: true, tilt: false };
+const sim = { ac, ap, camera, taoyuan, env, terrain, timeScale: 1, paused: true, camMode: 0, started: false, casual: true, voice: true, tilt: false };
 sim.audio = new GameAudio();
 sim.runways = runways;
 window.__sim = sim;
@@ -552,6 +555,7 @@ function frame() {
   if (!sim.paused) taoyuan.update(Math.min(0.1, dt * (sim.started ? Math.min(sim.timeScale, 4) : 1)), !sim.started || (sim.casual && ['briefing', 'takeoff'].includes(casual.stage)) || (!sim.casual && ac.onGround && !ac.touchdown));
   if (!sim.paused) traffic.update(Math.min(1, dt * (sim.started ? sim.timeScale : 1)));
   env.update(clock.elapsedTime);
+  terrain.update(camera.position, clock.elapsedTime);
   renderer.toneMappingExposure = env.exposure;
   ac.syncMesh();
   updateCamera(dt);

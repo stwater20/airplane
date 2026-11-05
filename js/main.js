@@ -1,18 +1,18 @@
 import * as THREE from 'three';
-import { buildWorld, runways, terrainHeight } from './world.js?v=20261105184350';
-import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261105184350';
-import { Autopilot } from './autopilot.js?v=20261105184350';
-import { HUD } from './hud.js?v=20261105184350';
-import { Casual } from './casual.js?v=20261105184350';
-import { GameAudio } from './audio.js?v=20261105184350';
-import { SpeedFX } from './effects.js?v=20261105184350';
-import { Taoyuan } from './taoyuan.js?v=20261105184350';
-import { DESTS } from './geo.js?v=20261105184350';
-import { Boarding } from './boarding.js?v=20261105184350';
-import { progress, LIVERIES, GACHA_COST, ACHIEVEMENTS, todaySeed, todayKey } from './progress.js?v=20261105184350';
-import { Terrain } from './terrain.js?v=20261105184350';
-import { Scenery } from './scenery.js?v=20261105184350';
-import { Traffic } from './traffic.js?v=20261105184350';
+import { buildWorld, runways, terrainHeight } from './world.js?v=20261105230830';
+import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261105230830';
+import { Autopilot } from './autopilot.js?v=20261105230830';
+import { HUD } from './hud.js?v=20261105230830';
+import { Casual } from './casual.js?v=20261105230830';
+import { GameAudio } from './audio.js?v=20261105230830';
+import { SpeedFX } from './effects.js?v=20261105230830';
+import { Taoyuan } from './taoyuan.js?v=20261105230830';
+import { DESTS } from './geo.js?v=20261105230830';
+import { Boarding } from './boarding.js?v=20261105230830';
+import { progress, LIVERIES, GACHA_COST, ACHIEVEMENTS, todaySeed, todayKey } from './progress.js?v=20261105230830';
+import { Terrain } from './terrain.js?v=20261105230830';
+import { Scenery } from './scenery.js?v=20261105230830';
+import { Traffic } from './traffic.js?v=20261105230830';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
@@ -42,6 +42,7 @@ const startRunway = runways.find((r) => r.airport === 'TPE' && r.id.startsWith('
 ac.placeOnRunway(startRunway, -1);
 ap.hdg = startRunway.heading;
 
+boarding.start(ac);   // 首頁背景：停機坪上正在登機的飛機
 const sim = { ac, ap, camera, taoyuan, env, terrain, boarding, timeScale: 1, paused: true, camMode: 0, started: false, casual: true, voice: true, tilt: false };
 sim.audio = new GameAudio();
 sim.runways = runways;
@@ -295,6 +296,8 @@ function startGame(easy, daily = false) {
   setDest(progress.data.dest || 'NRT');
   document.body.classList.add('playing');
   document.getElementById('menu').classList.add('hidden');
+  // 不播登機時，直接把飛機放到跑道
+  if (!easy || casual.short || progress.data.flights > 0) { boarding.stop(); ac.placeOnRunway(startRunway, -1); }
   if (easy && window.speechSynthesis) speechSynthesis.speak(new SpeechSynthesisUtterance(''));   // iOS 需在點擊時解鎖語音
   sim.audio.init();
   sim.daily = daily;
@@ -590,7 +593,17 @@ function updateCamera(dt) {
   const up = new THREE.Vector3(0, 1, 0).applyQuaternion(ac.quat);
   const mode = sim.camMode;
   ac.mesh.visible = mode !== 1;
-  if (sim.casual && (casual.stage === 'boarding' || casual.stage === 'taxi')) {
+  if (!sim.started) {
+    // 首頁：鏡頭緩慢繞著停機位上的飛機，看得到乘客登機
+    sim.menuT = (sim.menuT || 0) + dt;
+    const a = 0.75 + Math.sin(sim.menuT * 0.06) * 0.45;          // 左前方：看得到登機梯與巴士之間的乘客
+    const rr = new THREE.Vector3(boarding.rw.dirX, 0, boarding.rw.dirZ), side = new THREE.Vector3(-rr.z, 0, rr.x);
+    const c = ac.pos.clone().addScaledVector(side, -6);
+    camera.position.copy(c).addScaledVector(side, -Math.cos(a) * 46).addScaledVector(rr, Math.sin(a) * 46).setY(ac.pos.y + 9 + Math.sin(sim.menuT * 0.09) * 3);
+    camera.up.set(0, 1, 0);
+    camera.lookAt(c.x, ac.pos.y - 1, c.z);
+    camInit = false;
+  } else if (sim.casual && (casual.stage === 'boarding' || casual.stage === 'taxi')) {
     // 登機：從停機坪側面看著乘客走上登機梯
     sim.boardCamT = (sim.boardCamT || 0) + dt;
     const b = boarding;
@@ -704,6 +717,7 @@ function frame() {
   if (!sim.paused) taoyuan.update(Math.min(0.1, dt * (sim.started ? Math.min(sim.timeScale, 4) : 1)), !sim.started || (sim.casual && ['briefing', 'takeoff'].includes(casual.stage)) || (!sim.casual && ac.onGround && !ac.touchdown));
   if (!sim.paused) traffic.update(Math.min(1, dt * (sim.started ? sim.timeScale : 1)));
   env.update(clock.elapsedTime);
+  if (!sim.started) boarding.update(dt, env.mode !== 'day');
   scenery.update(sim.paused ? 0 : dt * Math.min(sim.started ? sim.timeScale : 1, 8), env);
   if (ac.touchdown && !sim.tdSmoke) { scenery.touchdown(ac); sim.tdSmoke = true; }
   if (!ac.touchdown) sim.tdSmoke = false;

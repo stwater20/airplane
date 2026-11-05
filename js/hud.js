@@ -1,7 +1,7 @@
-import { COASTLINES, ROUTE, toLonLat } from './geo.js?v=20261105184350';
-import { FLAP_NAMES, GEAR_H } from './aircraft.js?v=20261105184350';
-import { terrainHeight } from './world.js?v=20261105184350';
-import { wrap180 } from './autopilot.js?v=20261105184350';
+import { COASTLINES, ROUTE, toLonLat } from './geo.js?v=20261105230830';
+import { FLAP_NAMES, GEAR_H } from './aircraft.js?v=20261105230830';
+import { terrainHeight } from './world.js?v=20261105230830';
+import { wrap180 } from './autopilot.js?v=20261105230830';
 
 const R2D = 180 / Math.PI;
 const GREEN = '#3dff8a', CYAN = '#4fe3ff', MAG = '#ff5cf0', AMBER = '#ffb52e', WHITE = '#f4f7fb';

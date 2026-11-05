@@ -1,8 +1,8 @@
 // 輕鬆模式：自動起飛／巡航／降落，玩家只需拖曳讓飛機穿過金色圓環
 import * as THREE from 'three';
-import { RUNWAY_Y, terrainHeight } from './world.js?v=20261105184350';
-import { DESTS } from './geo.js?v=20261105184350';
-import { GEAR_H } from './aircraft.js?v=20261105184350';
+import { RUNWAY_Y, terrainHeight } from './world.js?v=20261105230830';
+import { DESTS } from './geo.js?v=20261105230830';
+import { GEAR_H } from './aircraft.js?v=20261105230830';
 
 const D2R = Math.PI / 180, KT = 0.514444, FT = 0.3048;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -211,7 +211,7 @@ export class Casual {
         this.say('seat', 'Welcome aboard. Please find your seat and place your carry-on bags in the overhead bins.', 'cabin', '歡迎登機，請找到您的座位，並將隨身行李放入上方置物櫃。');
       }
       this.boardT += dt;
-      b.update(dt);
+      b.update(dt, this.sim.env?.mode !== 'day');
       const dur = this.short ? 9 : 16;
       this.boarded = Math.min(b.total, Math.round(b.total * this.boardT / dur));
       if (this.boardT > dur + 1) this.endBoarding();

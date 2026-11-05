@@ -163,6 +163,7 @@
   @media (min-width: 600px) { body.btnmode #skipBtn { bottom: calc(150px + var(--sb)); } }
   @media (min-width: 600px) { #dpad { left: 200px; transform: none; bottom: calc(80px + var(--sb)); } }
   @media (max-height: 499px) and (min-width: 600px) { #dpad { left: 16px; bottom: calc(70px + var(--sb)); transform: scale(0.85); transform-origin: bottom left; } }
+  body:not(.playing) #credits { display: none; }
   #toast { position: fixed; top: 42%; left: 50%; transform: translate(-50%, 8px) scale(.96); padding: 10px 18px; border-radius: 999px; font-size: 14px; font-weight: 500;
     opacity: 0; transition: .3s cubic-bezier(.2,.9,.3,1.2); pointer-events: none; white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
   #toast.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
@@ -256,6 +257,63 @@
   .prize { display: flex; flex-direction: column; align-items: center; gap: 4px; animation: pop .5s cubic-bezier(.2,1.6,.4,1) both; }
   .prize i { width: 64px; height: 64px; border-radius: 50%; background: var(--c); box-shadow: 0 0 30px var(--c); }
   .prize em { font-style: normal; font-weight: 800; } .prize small { color: var(--label2); }
+
+  /* ───── 首頁：即時 3D 背景＋玻璃面板 ───── */
+  .home { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 18px;
+    padding: calc(24px + var(--st)) 20px calc(24px + var(--sb)); overflow-y: auto;
+    background: linear-gradient(180deg, rgba(0,10,30,0.15) 0%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.35) 100%); }
+  .home.hidden { display: none !important; }
+  .gl { position: relative; background: linear-gradient(160deg, rgba(255,255,255,0.16), rgba(255,255,255,0.05));
+    -webkit-backdrop-filter: blur(28px) saturate(190%); backdrop-filter: blur(28px) saturate(190%);
+    border: 1px solid rgba(255,255,255,0.22); box-shadow: 0 30px 80px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.35); }
+  .gl::before { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: radial-gradient(120% 60% at 20% 0%, rgba(255,255,255,0.18), transparent 60%); }
+  .homeHero { text-align: center; margin-bottom: auto; padding-top: 4vh; animation: rise .8s cubic-bezier(.2,.9,.3,1) both; }
+  .brandPill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 6px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    background: rgba(255,255,255,0.14); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.22); }
+  .logoS { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, #2f7be0, #0a84ff); font-weight: 800; font-size: 13px; }
+  .homeTitle { margin: 14px 0 6px; font: 800 clamp(48px, 12vw, 92px)/1 var(--sf); letter-spacing: -0.04em;
+    background: linear-gradient(180deg, #ffffff 30%, rgba(255,255,255,0.55)); -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: 0 10px 40px rgba(0,40,90,0.35); }
+  .homeSub { margin: 0; font-size: clamp(15px, 2.4vw, 19px); color: rgba(255,255,255,0.88); text-shadow: 0 2px 12px rgba(0,0,0,0.45); }
+  .homePanel { width: 100%; max-width: 480px; border-radius: 32px; padding: 20px 18px 16px; animation: rise .7s .1s cubic-bezier(.2,.9,.3,1) both; }
+  .destCards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .destCard { position: relative; border: 1px solid rgba(255,255,255,0.16); border-radius: 20px; padding: 12px 6px 10px; cursor: pointer; color: #fff;
+    background: rgba(255,255,255,0.08); display: flex; flex-direction: column; align-items: center; gap: 2px; transition: transform .2s, background .2s, border-color .2s, box-shadow .2s; }
+  .destCard .dIcon { font-size: 28px; line-height: 1.2; }
+  .destCard b { font-size: 15px; } .destCard small { font-size: 11px; color: rgba(255,255,255,0.65); }
+  .destCard.on { background: linear-gradient(160deg, rgba(10,132,255,0.55), rgba(94,92,230,0.45)); border-color: rgba(140,200,255,0.8);
+    box-shadow: 0 8px 24px rgba(10,132,255,0.35), inset 0 1px 0 rgba(255,255,255,0.4); transform: translateY(-2px); }
+  .destCard:active { transform: scale(0.97); }
+  .destLine { text-align: center; font-size: 12px; color: rgba(255,255,255,0.7); margin: 10px 0 0; min-height: 16px; }
+  .startBig { position: relative; overflow: hidden; width: 100%; margin-top: 12px; border: 0; border-radius: 20px; padding: 17px; cursor: pointer;
+    font: 700 19px var(--sf); color: #fff; letter-spacing: 0.02em;
+    background: linear-gradient(135deg, #0a84ff, #5e5ce6); box-shadow: 0 12px 30px rgba(10,132,255,0.45), inset 0 1px 0 rgba(255,255,255,0.45); transition: transform .15s; }
+  .startBig:active { transform: scale(0.98); }
+  .startBig span { position: relative; z-index: 1; }
+  .startBig .shine { position: absolute; top: 0; left: -60%; width: 40%; height: 100%; transform: skewX(-20deg);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent); animation: shine 3.2s ease-in-out infinite; }
+  @keyframes shine { 0%, 60% { left: -60%; } 100% { left: 130%; } }
+  .twoTiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .tileBtn { border: 1px solid rgba(255,255,255,0.16); border-radius: 20px; padding: 12px; text-align: left; cursor: pointer; color: #fff;
+    background: rgba(255,255,255,0.08); display: flex; flex-direction: column; gap: 2px; }
+  .tileBtn .tIc { font-size: 22px; } .tileBtn b { font-size: 15px; } .tileBtn small { font-size: 11px; color: rgba(255,255,255,0.65); }
+  .settings { margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 10px; }
+  .settings summary { text-align: left; font-size: 14px; color: rgba(255,255,255,0.8); }
+  .homeLinks { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; margin-top: 14px; font-size: 13px; }
+  .homeLinks a { color: #9fd3ff; text-decoration: none; }
+  .homeCredit { text-align: center; font-size: 10px; color: rgba(255,255,255,0.45); margin: 10px 0 0; line-height: 1.5; }
+  .homeCredit a { color: rgba(255,255,255,0.7); }
+  @media (min-width: 900px) {
+    .home { flex-direction: row; align-items: center; justify-content: space-between; padding: 40px 6vw; }
+    .homeHero { text-align: left; margin: 0; padding: 0; max-width: 520px; }
+    .homePanel { max-width: 440px; }
+  }
+  @media (max-width: 599px) {
+    .home { padding: calc(16px + var(--st)) 0 0; gap: 10px; }
+    .homePanel { max-width: none; border-radius: 30px 30px 0 0; padding-bottom: calc(18px + var(--sb)); }
+    .homePanel .grabber { display: block; }
+  }
   #result .sheet { text-align: center; }
   #result h2 { font: 700 26px var(--sf); margin: 6px 0 8px; }
   #result p { color: var(--label2); line-height: 1.6; margin: 0; font-size: 15px; }
@@ -379,48 +437,43 @@
 <div id="fade"></div><div id="flash"></div>
 <div id="credits">地形：USGS SRTM/GMTED2010、NOAA ETOPO1（Mapzen/AWS Terrain Tiles）・地表影像：NASA Blue Marble（NASA GIBS）</div>
 
-<div id="menu" class="overlay">
-  <div class="sheet">
+<div id="menu" class="home">
+  <div class="homeHero">
+    <div class="brandPill"><span class="logoS">S</span>資安航空 SecTools Airlines</div>
+    <h1 class="homeTitle">飛向日本</h1>
+    <p class="homeSub">從桃園起飛，穿越金色圓環，降落東京、大阪或沖繩。</p>
+  </div>
+  <div class="homePanel gl">
     <div class="grabber"></div>
-    <div class="eyebrow">資安航空 SecTools Airlines × <a href="https://gacha-sho.sectools.tw/" target="_blank" rel="noopener">資安航空扭蛋</a></div>
-    <h1 class="title">飛向日本</h1>
-    <p class="byline">由 <a href="https://sectools.tw/" target="_blank" rel="noopener">sectools.tw</a> 製作與維護</p>
-    <p class="subtitle">從桃園起飛，飛往東京成田、大阪關西或沖繩那霸。起飛、巡航、降落都自動完成，你只要用手指操控，讓飛機穿過金色圓環。</p>
-    <div class="list">
-      <div class="row"><div class="ic" style="background:var(--blue)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M12 10.5V9a1.5 1.5 0 0 1 3 0v2"/><path d="M15 11a1.5 1.5 0 0 1 3 0v3a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L4.5 15a1.5 1.5 0 0 1 2.4-1.8L9 15"/></svg></div>
-        <div class="txt">按住螢幕拖曳<small>左右轉彎・上下爬升或下降</small></div></div>
-      <div class="row"><div class="ic" style="background:var(--orange)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4"><circle cx="12" cy="12" r="7.5"/></svg></div>
-        <div class="txt">穿過金色圓環<small>每個 +100 分，降落越平穩加分越多</small></div></div>
-      <div class="row"><div class="ic" style="background:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></div>
-        <div class="txt">真實機上廣播<small>塔台通話、空服員安全示範與英文語音</small></div></div>
+    <div class="destCards" role="radiogroup" aria-label="目的地">
+      <button class="destCard" data-dest="NRT"><span class="dIcon">🗼</span><b>東京成田</b><small>NRT・2,180 km</small></button>
+      <button class="destCard" data-dest="KIX"><span class="dIcon">🏯</span><b>大阪關西</b><small>KIX・1,720 km</small></button>
+      <button class="destCard" data-dest="OKA"><span class="dIcon">🏝️</span><b>沖繩那霸</b><small>OKA・650 km</small></button>
     </div>
-    <p class="sectionTitle" style="margin-top:14px">目的地</p>
-    <div class="seg destSeg" role="radiogroup" aria-label="目的地">
-      <button data-dest="NRT">🗼 東京成田</button><button data-dest="KIX">🏯 大阪關西</button><button data-dest="OKA">🏝️ 沖繩那霸</button>
+    <p class="destLine" id="destInfo"></p>
+    <button class="startBig" id="startBtn"><span>開始飛行</span><i class="shine"></i></button>
+    <div class="twoTiles">
+      <button class="tileBtn" id="dailyBtn"><span class="tIc">📅</span><b>今日挑戰</b><small id="dailyInfo">每天固定路線，比分數</small></button>
+      <button class="tileBtn" data-open="hangar"><span class="tIc">🎰</span><b>機庫與扭蛋</b><small>🪙 <span class="coinBal">0</span>・最佳 <span class="bestVal">0</span></small></button>
     </div>
-    <p class="foot" id="destInfo" style="margin-top:6px"></p>
-    <div class="seg" role="radiogroup" aria-label="飛行時段">
-      <button data-tod="day">☀️ 白天</button><button data-tod="dawn">🌅 日出</button><button data-tod="night">🌙 夜晚</button><button data-tod="random">🎲 隨機</button>
-    </div>
-    <div class="seg ctrlSeg" role="radiogroup" aria-label="操控方式">
-      <button data-ctrl="drag">👆 拖曳操控</button><button data-ctrl="buttons">🎮 按鈕操控</button>
-    </div>
-    <button class="dailyRow" id="dailyBtn">
-      <span class="ic">📅</span>
-      <span class="txt">今日挑戰<small id="dailyInfo">每天固定的圓環路線，跟朋友比分數</small></span><span class="chev">›</span>
-    </button>
-    <button class="hangarRow" data-open="hangar">
-      <span class="ic" style="background:var(--indigo)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-5 9 5v12"/><path d="M7 21v-6h10v6"/></svg></span>
-      <span class="txt">機庫與扭蛋<small>🪙 <span class="coinBal">0</span> ・ 最佳 <span class="bestVal">0</span> 分</small></span><span class="chev">›</span>
-    </button>
-    <button class="btn primary" id="startBtn">開始飛行</button>
-    <p class="foot">電腦可用方向鍵操控・手機可開啟傾斜操控</p>
-    <details>
-      <summary>專業模式（鍵盤全手動，很難）</summary>
+    <details class="settings">
+      <summary>⚙️ 設定：時段與操控方式</summary>
+      <p class="sectionTitle">飛行時段</p>
+      <div class="seg" role="radiogroup" aria-label="飛行時段">
+        <button data-tod="day">☀️ 白天</button><button data-tod="dawn">🌅 日出</button><button data-tod="night">🌙 夜晚</button><button data-tod="random">🎲 隨機</button>
+      </div>
+      <p class="sectionTitle">操控方式</p>
+      <div class="seg ctrlSeg" role="radiogroup" aria-label="操控方式">
+        <button data-ctrl="drag">👆 拖曳操控</button><button data-ctrl="buttons">🎮 按鈕操控</button>
+      </div>
+      <p class="foot">電腦可用方向鍵操控・手機可在遊戲中開啟傾斜操控</p>
+    </details>
+    <details class="settings">
+      <summary>🕹️ 專業模式（鍵盤全手動，很難）</summary>
       <ol>
         <li>按住 <kbd>R</kbd> 將油門推至 100%，約 <b>150 kt</b> 時按住 <kbd>S</kbd>/<kbd>↓</kbd> 抬頭。</li>
         <li>離地後 <kbd>G</kbd> 收起落架、<kbd>Z</kbd> 收襟翼；400 ft 以上按 <kbd>K</kbd> <kbd>U</kbd> <kbd>N</kbd> 接通自動駕駛。</li>
-        <li><kbd>T</kbd> 時間加速；接近房總半島時 ALT 設 3000、SPD 180，按 <kbd>L</kbd> 截獲 ILS 自動降落。</li>
+        <li><kbd>T</kbd> 時間加速；接近目的地時 ALT 設 3000、SPD 180，按 <kbd>L</kbd> 截獲 ILS 自動降落。</li>
       </ol>
       <div class="keys">
         <div><span>俯仰／滾轉</span><span><kbd>W</kbd><kbd>S</kbd><kbd>A</kbd><kbd>D</kbd></span></div>
@@ -434,10 +487,11 @@
       </div>
       <button class="btn gray" id="proBtn">開始專業模式</button>
     </details>
-    <a class="btn gacha" href="https://gacha-sho.sectools.tw/" target="_blank" rel="noopener">🎰 去轉資安航空扭蛋 ›</a>
-    <div class="links"><a href="/guide/">遊戲攻略</a><a href="/route/">航線介紹</a><a href="/faq/">常見問題</a><a href="/en/">English</a></div>
-    <div class="links"><a href="https://sectools.tw/" target="_blank" rel="noopener">更多工具與小遊戲：sectools.tw</a></div>
-    <p class="foot">真實地形資料：USGS SRTM / GMTED2010、NOAA ETOPO1（經 Mapzen / AWS Terrain Tiles）。地表影像：NASA Blue Marble Next Generation（經 NASA GIBS）。本遊戲與 NASA、USGS、NOAA 無關，亦未獲其背書。</p>
+    <div class="homeLinks">
+      <a href="/guide/">遊戲攻略</a><a href="/route/">航線介紹</a><a href="/faq/">常見問題</a><a href="/en/">English</a>
+      <a href="https://gacha-sho.sectools.tw/" target="_blank" rel="noopener">資安航空扭蛋</a>
+    </div>
+    <p class="homeCredit">由 <a href="https://sectools.tw/" target="_blank" rel="noopener">sectools.tw</a> 製作與維護・地形 USGS / NOAA・地表影像 NASA Blue Marble。本遊戲與 NASA、USGS、NOAA 無關，亦未獲其背書。</p>
   </div>
 </div>
 
@@ -473,6 +527,6 @@
   </div>
 </div>
 
-<script type="module" src="js/main.js?v=20261105184350"></script>
+<script type="module" src="js/main.js?v=20261105230830"></script>
 </body>
 </html>

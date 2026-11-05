@@ -1,8 +1,8 @@
 // 機場生活感：停機坪上的飛機、空橋、地勤車輛，以及另一條跑道上起降的飛機
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { buildAircraftModel, GEAR_H } from './aircraft.js?v=20261105184350';
-import { runways, RUNWAY_Y } from './world.js?v=20261105184350';
+import { buildAircraftModel, GEAR_H } from './aircraft.js?v=20261105230830';
+import { runways, RUNWAY_Y } from './world.js?v=20261105230830';
 
 const D2R = Math.PI / 180;
 const APRON_Y = 1.6;
@@ -86,6 +86,7 @@ export class Traffic {
       const count = this.vehicles.filter((x) => VEHICLES[x.type] === v).length;
       const im = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color: v.color }), count);
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      im.frustumCulled = false;   // 位置每幀更新，避免邊界球停在初始位置被誤判在畫面外
       scene.add(im);
       return im;
     });

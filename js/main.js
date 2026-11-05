@@ -1,17 +1,18 @@
 import * as THREE from 'three';
-import { buildWorld, runways, terrainHeight } from './world.js?v=20261105181329';
-import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261105181329';
-import { Autopilot } from './autopilot.js?v=20261105181329';
-import { HUD } from './hud.js?v=20261105181329';
-import { Casual } from './casual.js?v=20261105181329';
-import { GameAudio } from './audio.js?v=20261105181329';
-import { SpeedFX } from './effects.js?v=20261105181329';
-import { Taoyuan } from './taoyuan.js?v=20261105181329';
-import { DESTS } from './geo.js?v=20261105181329';
-import { Boarding } from './boarding.js?v=20261105181329';
-import { progress, LIVERIES, GACHA_COST, ACHIEVEMENTS, todaySeed, todayKey } from './progress.js?v=20261105181329';
-import { Terrain } from './terrain.js?v=20261105181329';
-import { Traffic } from './traffic.js?v=20261105181329';
+import { buildWorld, runways, terrainHeight } from './world.js?v=20261105184350';
+import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261105184350';
+import { Autopilot } from './autopilot.js?v=20261105184350';
+import { HUD } from './hud.js?v=20261105184350';
+import { Casual } from './casual.js?v=20261105184350';
+import { GameAudio } from './audio.js?v=20261105184350';
+import { SpeedFX } from './effects.js?v=20261105184350';
+import { Taoyuan } from './taoyuan.js?v=20261105184350';
+import { DESTS } from './geo.js?v=20261105184350';
+import { Boarding } from './boarding.js?v=20261105184350';
+import { progress, LIVERIES, GACHA_COST, ACHIEVEMENTS, todaySeed, todayKey } from './progress.js?v=20261105184350';
+import { Terrain } from './terrain.js?v=20261105184350';
+import { Scenery } from './scenery.js?v=20261105184350';
+import { Traffic } from './traffic.js?v=20261105184350';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
@@ -25,8 +26,9 @@ const env = buildWorld(scene);
 const { sun, sky } = env;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
+const scenery = new Scenery(scene);
 const terrain = new Terrain(scene);
-terrain.load().then(() => env.useTerrain((x, z) => terrain.heightAt(x, z))).catch((e) => console.warn('真實地形載入失敗，使用手工地形', e));
+terrain.load().then(() => { env.useTerrain((x, z) => terrain.heightAt(x, z)); scenery.spawnShips((x, z) => terrain.heightAt(x, z)); }).catch((e) => console.warn('真實地形載入失敗，使用手工地形', e));
 const traffic = new Traffic(scene);
 const taoyuan = new Taoyuan(scene);
 const boarding = new Boarding(scene);
@@ -296,6 +298,8 @@ function startGame(easy, daily = false) {
   if (easy && window.speechSynthesis) speechSynthesis.speak(new SpeechSynthesisUtterance(''));   // iOS 需在點擊時解鎖語音
   sim.audio.init();
   sim.daily = daily;
+  sim.autoUsed = sim.autoFly = false; sim.jumped = false;
+  document.querySelector('[data-c="auto"]')?.classList.remove('on');
   casual.daily = daily ? todaySeed() : 0;
   if (daily) env.setTime(['day', 'dawn', 'night'][todaySeed() % 3]); else pickTime();
   applyLivery();
@@ -305,6 +309,12 @@ function startGame(easy, daily = false) {
 document.getElementById('startBtn').addEventListener('click', () => startGame(true));
 document.getElementById('proBtn').addEventListener('click', () => startGame(false));
 document.getElementById('dailyBtn').addEventListener('click', () => startGame(true, true));
+document.querySelectorAll('[data-jump]').forEach((b) => b.addEventListener('click', () => {
+  document.getElementById('jumpSheet').classList.add('hidden');
+  sim.jumped = true;
+  casual.jumpTo(b.dataset.jump);
+  sim.paused = false; document.querySelector('[data-c="pause"]').classList.remove('paused');
+}));
 {
   const d = progress.data.daily;
   if (d && d.date === todayKey() && d.best) document.getElementById('dailyInfo').textContent = `今天最佳 ${d.best.toLocaleString()} 分・每天固定的圓環路線`;
@@ -316,6 +326,12 @@ document.querySelectorAll('[data-c]').forEach((b) => b.addEventListener('click',
   if (c === 'music') { sim.audio.musicOn = !sim.audio.musicOn; b.classList.toggle('off', !sim.audio.musicOn); }
   if (c === 'tilt') toggleTilt(b);
   if (c === 'photo') takePhoto();
+  if (c === 'auto') {
+    sim.autoFly = !sim.autoFly; b.classList.toggle('on', sim.autoFly);
+    if (sim.autoFly) sim.autoUsed = true;
+    toast(sim.autoFly ? '🤖 自動飛行開啟：電腦幫你穿圓環（碰觸操控即解除）' : '自動飛行關閉');
+  }
+  if (c === 'jump') document.getElementById('jumpSheet').classList.toggle('hidden');
   if (c === 'pause') { sim.paused = !sim.paused; b.classList.toggle('paused', sim.paused); }
   if (c === 'menu') location.reload();
   if (c === 'voice') {
@@ -332,6 +348,7 @@ function restart() {
   sim.timeScale = 1;
   sim.resetCam = true;
   fx.reset();
+  sim.autoUsed = sim.autoFly; sim.jumped = false;
   if (sim.casual) { if (!sim.daily) pickTime(); applyLivery(); casual.short = true; casual.reset(); casual.setStage(casual.stage); sim.briefT = 0; }
   document.getElementById('result').classList.add('hidden');
   shownResult = false;
@@ -444,9 +461,11 @@ function showResult() {
     const total = casual.score + bonus + comfortBonus;
     const stars = casual.stars(vs);
     const coins = casual.coinsGot + Math.floor(total / 200);
-    const best = progress.finishFlight(total, coins);
-    const dailyBest = sim.daily ? progress.dailyBest(total) : false;
+    const assisted = sim.autoUsed || sim.jumped;          // 自動飛行或跳關：不列入紀錄
+    const best = assisted ? (progress.addCoins(coins), false) : progress.finishFlight(total, coins);
+    const dailyBest = sim.daily && !assisted ? progress.dailyBest(total) : false;
     if (vs > -300) sim.audio.applause(vs > -150 ? 5 : 3);
+    if (!assisted) {
     achieve('first');
     if (vs > -150) achieve('butter');
     if (casual.bestCombo >= 10) achieve('combo10');
@@ -462,7 +481,8 @@ function showResult() {
     const flown = new Set([...(progress.data.routes || []), ap.dest]);
     progress.data.routes = [...flown]; progress.save();
     if (flown.size >= 3) achieve('allroutes');
-    title.textContent = `歡迎來到${DESTS[ap.dest].zh}！`;
+    }
+    title.innerHTML = `歡迎來到${DESTS[ap.dest].zh}！${assisted ? `<span class="autoTag">${sim.autoUsed ? '🤖 自動飛行' : '⏭ 跳關'}・不列入紀錄</span>` : ''}`;
     body.innerHTML = `${grade}・乘客滿意 +${comfortBonus}<b>${total.toLocaleString()}</b>`;
     document.getElementById('rStars').innerHTML = `
       <div class="stars">${[1, 2, 3].map((i) => `<span class="${i <= stars ? 'on' : ''}" style="animation-delay:${i * 0.18}s">★</span>`).join('')}</div>`;
@@ -519,6 +539,17 @@ function readControls(dt) {
       y += dead(-(drag.y - drag.oy) / R) * (portrait ? 0.8 : 1);   // 往上拖＝爬升
     }
     if (sim.tilt) { x += tilt.x; y += tilt.y; }
+    // 玩家碰觸操控就解除自動飛行
+    if (sim.autoFly && (drag.active || Math.abs(x) > 0.2 || Math.abs(y) > 0.2)) {
+      sim.autoFly = false; document.querySelector('[data-c="auto"]').classList.remove('on'); toast('已解除自動飛行');
+    }
+    // 自動飛行：平穩地對準圓環（兼顧乘客滿意度）
+    if (sim.autoFly && casual.ring && casual.turbT <= 0) {
+      const r = casual.ring, rel = r.c.clone().sub(ac.pos);
+      const lat = rel.x * -r.n.z + rel.z * r.n.x, latV = ac.vel.x * -r.n.z + ac.vel.z * r.n.x;
+      x = Math.max(-0.85, Math.min(0.85, lat / 60 - latV / 7));
+      y = Math.max(-0.8, Math.min(0.8, rel.y / 28 - ac.vel.y / 14));
+    }
     // 瞄準輔助：操控時把飛機拉向圓環；直式手機高度輔助更強，玩家專心左右轉就好
     const steering = drag.active || sim.tilt || x || y;
     if (steering && casual.ring) {
@@ -673,6 +704,9 @@ function frame() {
   if (!sim.paused) taoyuan.update(Math.min(0.1, dt * (sim.started ? Math.min(sim.timeScale, 4) : 1)), !sim.started || (sim.casual && ['briefing', 'takeoff'].includes(casual.stage)) || (!sim.casual && ac.onGround && !ac.touchdown));
   if (!sim.paused) traffic.update(Math.min(1, dt * (sim.started ? sim.timeScale : 1)));
   env.update(clock.elapsedTime);
+  scenery.update(sim.paused ? 0 : dt * Math.min(sim.started ? sim.timeScale : 1, 8), env);
+  if (ac.touchdown && !sim.tdSmoke) { scenery.touchdown(ac); sim.tdSmoke = true; }
+  if (!ac.touchdown) sim.tdSmoke = false;
   terrain.update(camera.position, clock.elapsedTime);
   renderer.toneMappingExposure = env.exposure;
   ac.syncMesh();

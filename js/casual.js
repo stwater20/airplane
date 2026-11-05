@@ -1,8 +1,8 @@
 // 輕鬆模式：自動起飛／巡航／降落，玩家只需拖曳讓飛機穿過金色圓環
 import * as THREE from 'three';
-import { RUNWAY_Y, terrainHeight } from './world.js?v=20261105181329';
-import { DESTS } from './geo.js?v=20261105181329';
-import { GEAR_H } from './aircraft.js?v=20261105181329';
+import { RUNWAY_Y, terrainHeight } from './world.js?v=20261105184350';
+import { DESTS } from './geo.js?v=20261105184350';
+import { GEAR_H } from './aircraft.js?v=20261105184350';
 
 const D2R = Math.PI / 180, KT = 0.514444, FT = 0.3048;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -325,6 +325,43 @@ export class Casual {
     }
   }
 
+  // 跳到指定階段：takeoff / climb / cruise / approach
+  jumpTo(stage) {
+    const { ac, ap } = this;
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    if (this.ring) { this.scene.remove(this.ring.mesh); this.ring = null; }
+    for (const c of this.coins) this.scene.remove(c);
+    this.coins = []; this.turbT = 0;
+    this.sim.boarding?.stop();
+    if (stage === 'approach') { this.toApproach(); return; }
+    const rw = this.sim.runways.find((r) => r.airport === 'TPE' && r.id.startsWith('05R'));
+    if (stage === 'takeoff') {
+      ac.placeOnRunway(rw, -1);
+      Object.assign(ap, { ap: false, athr: false, lat: 'HDG', vert: 'ALT', appArmed: false, wp: 1 });
+      this.sim.timeScale = 1; this.sim.resetCam = true;
+      this.setStage('takeoff', '跳到起飛');
+      return;
+    }
+    const R = ap.route;
+    const i = stage === 'climb' ? 0 : Math.floor(R.length / 2) - 1;
+    const a = R[i], b = R[i + 1];
+    const n = new THREE.Vector3(b.x - a.x, 0, b.z - a.z).normalize();
+    const p = new THREE.Vector3(a.x, 0, a.z).addScaledVector(n, stage === 'climb' ? 6000 : 0);
+    const alt = stage === 'climb' ? 700 : 10668, spd = stage === 'climb' ? 150 : 230;
+    const hdg = Math.atan2(n.x, -n.z);
+    ac.onGround = false; ac.touchdown = null; ac.landed = null; ac.crashed = false;
+    ac.pos.set(p.x, alt + GEAR_H, p.z);
+    ac.quat.setFromEuler(new THREE.Euler(0.03, -hdg, 0, 'YXZ'));
+    ac.vel.copy(n).multiplyScalar(spd); ac.omega.set(0, 0, 0);
+    Object.assign(ac, { throttle: 0.7, flaps: 0, flapPos: 0, gearDown: false, gearPos: 0, brakes: false, spoilers: false });
+    Object.assign(ap, { ap: true, athr: true, lat: 'NAV', vert: 'ALT', appArmed: false, wp: i + 1, alt: stage === 'climb' ? 9000 : 35000, spd: stage === 'climb' ? 250 : 290 });
+    this.sim.resetCam = true;
+    this.cruiseT = 0;
+    this.sim.timeScale = stage === 'cruise' ? 64 : 1;
+    this.setBelt(stage === 'climb');
+    this.setStage(stage, stage === 'climb' ? '跳到爬升：穿過金色圓環！' : '跳到巡航');
+  }
+
   // 傳送到目的地 ILS 跑道五邊 8 浬處
   toApproach() {
     const { ac, ap } = this;
@@ -334,7 +371,9 @@ export class Casual {
     const r = ap.ilsRunway();
     const d = 8 * 1852;
     const thrX = r.cx - r.dirX * r.halfLen, thrZ = r.cz - r.dirZ * r.halfLen;
-    ac.onGround = false;
+    // 落地柔和程度：一點隨機（當天風況）＋乘客滿意度越高越容易奶油落地
+    ac.groundEffect = 0.44 + Math.random() * 0.09 + 0.05 * (this.comfort / 100);
+    ac.onGround = false; ac.touchdown = null; ac.landed = null; ac.crashed = false;
     ac.pos.set(thrX - r.dirX * d, RUNWAY_Y + 15 + d * Math.tan(3 * D2R) + GEAR_H, thrZ - r.dirZ * d);
     ac.quat.setFromEuler(new THREE.Euler(0.04, -r.heading * D2R, 0, 'YXZ'));
     ac.vel.set(r.dirX, 0, r.dirZ).multiplyScalar(80);

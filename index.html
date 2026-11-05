@@ -128,6 +128,13 @@
   #dpad { display: none; position: fixed; left: 50%; bottom: calc(118px + var(--sb)); width: 210px; height: 150px; transform: translateX(-50%); }
   body.casual.playing.btnmode #dpad { display: block; }
   body.btnmode[data-stage="cruise"] #dpad, body.btnmode[data-stage="briefing"] #dpad, body.btnmode[data-stage="boarding"] #dpad { opacity: 0.35; }
+  #jumpSheet { position: fixed; left: 12px; bottom: calc(72px + var(--sb)); border-radius: 18px; padding: 8px; display: grid; gap: 4px; min-width: 180px; z-index: 4; }
+  #jumpSheet .jt { font-size: 12px; color: var(--label2); padding: 4px 8px; }
+  #jumpSheet button { border: 0; background: transparent; color: var(--label); text-align: left; font-size: 15px; padding: 10px 12px; border-radius: 12px; cursor: pointer; }
+  #jumpSheet button:active { background: var(--fill); }
+  #cbar { flex-wrap: wrap; max-width: calc(100vw - 24px); }
+  @media (max-width: 599px) { #cbar button { width: 40px; height: 40px; } #cbar button svg { width: 20px; height: 20px; } }
+  .autoTag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: rgba(10,132,255,0.25); color: #9fd3ff; font-size: 12px; vertical-align: middle; }
   #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .45s; z-index: 5; }
   #fade.on { opacity: 1; }
   #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 6; }
@@ -327,10 +334,19 @@
   <button data-c="cam" aria-label="切換視角"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="3"/><path d="M15.5 10.5l5-3v9l-5-3z"/></svg></button>
   <button data-c="voice" aria-label="語音廣播"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/></svg></button>
   <button data-c="music" aria-label="背景音樂"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></button>
+  <button data-c="auto" aria-label="自動飛行" title="自動飛行"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 8V5"/><circle cx="12" cy="4" r="1"/><circle cx="9.5" cy="13" r="1.2" fill="currentColor"/><circle cx="14.5" cy="13" r="1.2" fill="currentColor"/><path d="M9.5 16.5h5"/></svg></button>
+  <button data-c="jump" aria-label="跳到階段" title="跳到階段"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6l7 6-7 6z" fill="currentColor"/><path d="M13 6l6 6-6 6"/></svg></button>
   <button data-c="photo" aria-label="拍照"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8h3l2-2.5h6L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
   <button data-c="tilt" aria-label="傾斜手機操控" class="tiltbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="7" y="2.5" width="10" height="19" rx="2.5" transform="rotate(-18 12 12)"/><path d="M3 9a9 9 0 0 1 3-4M21 15a9 9 0 0 1-3 4"/></svg></button>
 </div>
 <button data-c="skip" id="skipBtn"></button>
+<div id="jumpSheet" class="glass hidden" role="menu" aria-label="跳到階段">
+  <div class="jt">跳到…</div>
+  <button data-jump="takeoff">🛫 起飛</button>
+  <button data-jump="climb">⭕ 爬升圓環</button>
+  <button data-jump="cruise">☁️ 巡航</button>
+  <button data-jump="approach">🛬 進場降落</button>
+</div>
 <div id="dpad" aria-label="方向按鈕">
   <button data-key="arrowup" data-hold class="up glass" aria-label="爬升"><svg viewBox="0 0 24 24"><path d="M12 6l7 9H5z" fill="currentColor"/></svg></button>
   <button data-key="arrowleft" data-hold class="left glass" aria-label="左轉"><svg viewBox="0 0 24 24"><path d="M6 12l9-7v14z" fill="currentColor"/></svg></button>
@@ -457,6 +473,6 @@
   </div>
 </div>
 
-<script type="module" src="js/main.js?v=20261105181329"></script>
+<script type="module" src="js/main.js?v=20261105184350"></script>
 </body>
 </html>

@@ -112,6 +112,32 @@ export const AIRPORTS = {
     ],
     city: { lon: 140.30, lat: 35.77, radius: 5000, count: 500 },
   },
+  // 關西機場在海上人工島：flat: 'box' 只在跑道周圍做出陸地，不做圓形壓平
+  KIX: {
+    name: '關西國際機場', icao: 'RJBB', flat: 'box',
+    runways: [
+      { id: '06R/24L', lon: 135.2445, lat: 34.4320, heading: 58, length: 3500, width: 60, ils: '06R' },
+    ],
+    city: { lon: 135.29, lat: 34.40, radius: 1500, count: 40 },
+  },
+  // 那霸機場臨海，從北邊進場 18 號跑道
+  OKA: {
+    name: '那霸機場', icao: 'ROAH', flat: 'box',
+    runways: [
+      { id: '18/36', lon: 127.6465, lat: 26.1958, heading: 181, length: 3000, width: 60, ils: '18' },
+    ],
+    city: { lon: 127.672, lat: 26.205, radius: 2500, count: 160 },
+  },
+};
+
+// 目的地（廣播、介面用文字）
+export const DESTS = {
+  NRT: { code: 'NRT', zh: '東京成田', full: 'Tokyo Narita International Airport', fullZh: '東京成田國際機場', city: 'Tokyo Narita',
+    tower: 'Narita Tower', approach: 'Narita Approach', rwy: 'three four left', rwyId: '34L', time: 'about three hours', timeZh: '約三小時', km: 2180, icon: '🗼' },
+  KIX: { code: 'KIX', zh: '大阪關西', full: 'Kansai International Airport', fullZh: '大阪關西國際機場', city: 'Osaka Kansai',
+    tower: 'Kansai Tower', approach: 'Kansai Approach', rwy: 'zero six right', rwyId: '06R', time: 'about two and a half hours', timeZh: '約兩個半小時', km: 1720, icon: '🏯' },
+  OKA: { code: 'OKA', zh: '沖繩那霸', full: 'Naha Airport', fullZh: '沖繩那霸機場', city: 'Okinawa Naha',
+    tower: 'Naha Tower', approach: 'Naha Approach', rwy: 'one eight', rwyId: '18', time: 'about one hour and fifteen minutes', timeZh: '約一小時十五分', km: 650, icon: '🏝️' },
 };
 
 export const EXTRA_CITIES = [
@@ -126,6 +152,30 @@ export const EXTRA_CITIES = [
 ];
 
 // 航路：TPE 05R 起飛 → 沿琉球群島 → 紀伊半島外海 → 成田 34L ILS 進場
+export const ROUTES = {
+  KIX: [
+    { name: 'TPE', lon: 121.2360, lat: 25.0700 },
+    { name: 'ABBEY', lon: 122.30, lat: 25.75 },
+    { name: 'SALMI', lon: 124.60, lat: 26.70 },
+    { name: 'OKINA', lon: 127.70, lat: 27.40 },
+    { name: 'AMAMI', lon: 129.60, lat: 29.10 },
+    { name: 'YAKSM', lon: 131.40, lat: 31.20 },
+    { name: 'TOSA', lon: 133.40, lat: 32.80 },
+    { name: 'KAIFU', lon: 134.60, lat: 33.90 },
+    { name: 'FINAL', lon: 135.092, lat: 34.353 },   // 06R 五邊
+    { name: 'KIX', lon: 135.2445, lat: 34.4320 },
+  ],
+  OKA: [
+    { name: 'TPE', lon: 121.2360, lat: 25.0700 },
+    { name: 'ABBEY', lon: 122.30, lat: 25.75 },
+    { name: 'YONAG', lon: 124.80, lat: 26.40 },
+    { name: 'KERAM', lon: 126.90, lat: 26.75 },
+    { name: 'IF18', lon: 127.646, lat: 26.58 },
+    { name: 'FINAL', lon: 127.646, lat: 26.343 },   // 18 號跑道五邊
+    { name: 'OKA', lon: 127.6465, lat: 26.1958 },
+  ],
+};
+
 export const ROUTE = [
   { name: 'TPE', lon: 121.2360, lat: 25.0700 },
   { name: 'ABBEY', lon: 122.30, lat: 25.75 },
@@ -140,3 +190,4 @@ export const ROUTE = [
   { name: 'FINAL', lon: 140.52, lat: 35.52 },  // 34L 五邊（約 15nm）
   { name: 'NRT', lon: 140.3864, lat: 35.7647 },
 ];
+ROUTES.NRT = ROUTE;

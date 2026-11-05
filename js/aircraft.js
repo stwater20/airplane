@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RUNWAY_Y, terrainHeight, runwayAt } from './world.js?v=20261104214437';
+import { RUNWAY_Y, terrainHeight, runwayAt } from './world.js?v=20261105181329';
 
 // 單位：SI。機身座標：-Z 前、+Y 上、+X 右
 const G = 9.81;
@@ -324,7 +324,7 @@ export class Aircraft {
     // 落地完成：在成田跑道上停止
     if (this.onGround && this.touchdown && this.vel.length() < 3) {
       const rw = runwayAt(this.pos.x, this.pos.z);
-      if (rw && rw.airport === 'NRT' && !this.landed) this.landed = { ...this.touchdown, time: this.t };
+      if (rw && rw.airport === (this.dest || 'NRT') && !this.landed) this.landed = { ...this.touchdown, time: this.t };
     }
   }
 

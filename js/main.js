@@ -1,16 +1,17 @@
 import * as THREE from 'three';
-import { buildWorld, runways, terrainHeight } from './world.js?v=20261104214437';
-import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261104214437';
-import { Autopilot } from './autopilot.js?v=20261104214437';
-import { HUD } from './hud.js?v=20261104214437';
-import { Casual } from './casual.js?v=20261104214437';
-import { GameAudio } from './audio.js?v=20261104214437';
-import { SpeedFX } from './effects.js?v=20261104214437';
-import { Taoyuan } from './taoyuan.js?v=20261104214437';
-import { Boarding } from './boarding.js?v=20261104214437';
-import { progress, LIVERIES, GACHA_COST, ACHIEVEMENTS, todaySeed, todayKey } from './progress.js?v=20261104214437';
-import { Terrain } from './terrain.js?v=20261104214437';
-import { Traffic } from './traffic.js?v=20261104214437';
+import { buildWorld, runways, terrainHeight } from './world.js?v=20261105181329';
+import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261105181329';
+import { Autopilot } from './autopilot.js?v=20261105181329';
+import { HUD } from './hud.js?v=20261105181329';
+import { Casual } from './casual.js?v=20261105181329';
+import { GameAudio } from './audio.js?v=20261105181329';
+import { SpeedFX } from './effects.js?v=20261105181329';
+import { Taoyuan } from './taoyuan.js?v=20261105181329';
+import { DESTS } from './geo.js?v=20261105181329';
+import { Boarding } from './boarding.js?v=20261105181329';
+import { progress, LIVERIES, GACHA_COST, ACHIEVEMENTS, todaySeed, todayKey } from './progress.js?v=20261105181329';
+import { Terrain } from './terrain.js?v=20261105181329';
+import { Traffic } from './traffic.js?v=20261105181329';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
@@ -289,6 +290,7 @@ function startGame(easy, daily = false) {
   sim.started = true;
   sim.paused = false;
   ac.rollRateMax = easy ? 0.5 : 0.26;
+  setDest(progress.data.dest || 'NRT');
   document.body.classList.add('playing');
   document.getElementById('menu').classList.add('hidden');
   if (easy && window.speechSynthesis) speechSynthesis.speak(new SpeechSynthesisUtterance(''));   // iOS 需在點擊時解鎖語音
@@ -326,6 +328,7 @@ document.querySelectorAll('[data-c]').forEach((b) => b.addEventListener('click',
 function restart() {
   ac.placeOnRunway(startRunway, -1);
   Object.assign(ap, { ap: false, athr: false, lat: 'HDG', vert: 'ALT', appArmed: false, wp: 1, hdg: startRunway.heading, assistGain: 0 });
+  setDest(ap.dest);
   sim.timeScale = 1;
   sim.resetCam = true;
   fx.reset();
@@ -392,6 +395,20 @@ document.querySelectorAll('[data-open="hangar"]').forEach((b) => b.addEventListe
   refreshCoins(); document.getElementById('spinOut').innerHTML = ''; document.getElementById('hangar').classList.remove('hidden');
 }));
 document.getElementById('hangarClose').addEventListener('click', () => document.getElementById('hangar').classList.add('hidden'));
+// 目的地選擇
+function setDest(code) {
+  if (!DESTS[code]) code = 'NRT';
+  progress.data.dest = code; progress.save();
+  ap.setRoute(code);
+  ac.dest = code;
+  document.querySelectorAll('[data-dest]').forEach((x) => x.classList.toggle('on', x.dataset.dest === code));
+  const D = DESTS[code];
+  const sub = document.getElementById('destInfo');
+  if (sub) sub.textContent = `桃園 TPE → ${D.zh} ${D.code}・直線約 ${D.km.toLocaleString()} 公里・實際航班${D.timeZh}`;
+}
+document.querySelectorAll('[data-dest]').forEach((b) => b.addEventListener('click', () => setDest(b.dataset.dest)));
+setDest(progress.data.dest || 'NRT');
+
 // 操控方式：拖曳／按鈕
 function setCtrl(mode) {
   sim.ctrl = mode;
@@ -440,7 +457,12 @@ function showResult() {
     if (sim.daily) achieve('daily');
     if (progress.data.flights >= 10) achieve('veteran');
     if (casual.comfort >= 95) achieve('comfort');
-    title.textContent = '歡迎來到東京成田！';
+    if (ap.dest === 'KIX') achieve('kix');
+    if (ap.dest === 'OKA') achieve('oka');
+    const flown = new Set([...(progress.data.routes || []), ap.dest]);
+    progress.data.routes = [...flown]; progress.save();
+    if (flown.size >= 3) achieve('allroutes');
+    title.textContent = `歡迎來到${DESTS[ap.dest].zh}！`;
     body.innerHTML = `${grade}・乘客滿意 +${comfortBonus}<b>${total.toLocaleString()}</b>`;
     document.getElementById('rStars').innerHTML = `
       <div class="stars">${[1, 2, 3].map((i) => `<span class="${i <= stars ? 'on' : ''}" style="animation-delay:${i * 0.18}s">★</span>`).join('')}</div>`;
@@ -453,7 +475,7 @@ function showResult() {
         <div><b>${Math.round(casual.comfort)}%</b><span>😊 乘客滿意</span></div>
         <div><b>+${coins}</b><span>🪙 金幣</span></div>
       </div>`;
-    lastShare = `${sim.daily ? `📅 今日挑戰（${todayKey()}）` : ''}我開資安航空從桃園飛到東京成田，拿到 ${'★'.repeat(stars)} ${total.toLocaleString()} 分！你也來試試 👉`;
+    lastShare = `${sim.daily ? `📅 今日挑戰（${todayKey()}）` : ''}我開資安航空從桃園飛到${DESTS[ap.dest].zh}，拿到 ${'★'.repeat(stars)} ${total.toLocaleString()} 分！你也來試試 👉`;
     document.getElementById('shareBtn').classList.remove('hidden');
     refreshCoins();
   } else if (ac.crashed) {

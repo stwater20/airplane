@@ -1,7 +1,7 @@
-import { COASTLINES, ROUTE, toLonLat } from './geo.js?v=20261104214437';
-import { FLAP_NAMES, GEAR_H } from './aircraft.js?v=20261104214437';
-import { terrainHeight } from './world.js?v=20261104214437';
-import { wrap180 } from './autopilot.js?v=20261104214437';
+import { COASTLINES, ROUTE, toLonLat } from './geo.js?v=20261105181329';
+import { FLAP_NAMES, GEAR_H } from './aircraft.js?v=20261105181329';
+import { terrainHeight } from './world.js?v=20261105181329';
+import { wrap180 } from './autopilot.js?v=20261105181329';
 
 const R2D = 180 / Math.PI;
 const GREEN = '#3dff8a', CYAN = '#4fe3ff', MAG = '#ff5cf0', AMBER = '#ffb52e', WHITE = '#f4f7fb';
@@ -298,15 +298,15 @@ export class HUD {
     }
     const ROUTE_C = apple ? '#0a84ff' : MAG;
     g.strokeStyle = ROUTE_C; g.lineWidth = apple ? 2.5 : 1.5; g.lineCap = 'round'; g.beginPath();
-    ROUTE.forEach((p, i) => { const [px, py] = P(p.lon, p.lat); i ? g.lineTo(px, py) : g.moveTo(px, py); });
+    ap.route.forEach((p, i) => { const [px, py] = P(p.lon, p.lat); i ? g.lineTo(px, py) : g.moveTo(px, py); });
     g.stroke();
     g.font = apple ? '600 10px -apple-system, sans-serif' : '9px ui-monospace, monospace'; g.textAlign = 'left';
-    ROUTE.forEach((p, i) => {
+    ap.route.forEach((p, i) => {
       const [px, py] = P(p.lon, p.lat);
       g.fillStyle = i === ap.wp ? (apple ? '#ffd60a' : MAG) : WHITE;
-      if (apple) { if (i === 0 || i === ROUTE.length - 1 || i === ap.wp) { g.beginPath(); g.arc(px, py, 3, 0, Math.PI * 2); g.fill(); } } else g.fillRect(px - 2, py - 2, 4, 4);
-      if (apple && !(i === 0 || i === ROUTE.length - 1)) return;
-      if (this.mapZoom > 0 || i === 0 || i === ROUTE.length - 1) g.fillText(p.name, px + 4, py - 3);
+      if (apple) { if (i === 0 || i === ap.route.length - 1 || i === ap.wp) { g.beginPath(); g.arc(px, py, 3, 0, Math.PI * 2); g.fill(); } } else g.fillRect(px - 2, py - 2, 4, 4);
+      if (apple && !(i === 0 || i === ap.route.length - 1)) return;
+      if (this.mapZoom > 0 || i === 0 || i === ap.route.length - 1) g.fillText(p.name, px + 4, py - 3);
     });
     const [ax, ay] = P(me.lon, me.lat);
     const hd = ac.attitude().heading * Math.PI / 180;

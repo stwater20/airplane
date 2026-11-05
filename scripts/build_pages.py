@@ -109,7 +109,12 @@ urls.append(page('/guide/', 'zh-Hant', '飛向東京遊戲攻略：操控、連�
                  '遊戲攻略', '資安航空・飛行手冊', '從登機、起飛、穿越圓環到降落成田，一次看懂操控方式與拿高分的訣竅。', guide_body, [howto]))
 
 # ── 航線介紹 ──
-route_body = '''<section class="card"><h2>航線概要</h2><table>
+route_body = '''<section class="card"><h2>三條航線</h2><table>
+<tr><th>🗼 桃園 → 東京成田</th><td>直線約 2,180 公里，實際航班約 3 小時。沿琉球群島與日本南岸飛行，經房總半島進場 34L 跑道。</td></tr>
+<tr><th>🏯 桃園 → 大阪關西</th><td>直線約 1,700 公里，實際航班約 2.5 小時。經九州、四國南方外海，從大阪灣進場海上人工島的 06R 跑道。</td></tr>
+<tr><th>🏝️ 桃園 → 沖繩那霸</th><td>直線約 650 公里，實際航班約 1 小時 15 分，最適合短時間輕鬆飛一趟。從北方進場 18 號跑道。</td></tr>
+</table><p class="muted">實際航班時間會依風向、航路與航空公司不同而變動，以上為大約數字。</p></section>
+<section class="card"><h2>東京成田航線概要</h2><table>
 <tr><th>出發</th><td>臺灣桃園國際機場（TPE / RCTP），遊戲使用 05R 跑道起飛</td></tr>
 <tr><th>抵達</th><td>東京成田國際機場（NRT / RJAA），遊戲使用 34L 跑道 ILS 進場</td></tr>
 <tr><th>直線距離</th><td>約 2,180 公里（約 1,180 海里）</td></tr>
@@ -126,10 +131,12 @@ route_body = '''<section class="card"><h2>航線概要</h2><table>
 </div><p class="muted">遊戲中的地形來自真實的公開高程資料（SRTM、GMTED2010、ETOPO1），地表顏色來自 NASA Blue Marble 衛星合成影像，所以海岸線與山脈的位置都是真實的。</p></section>
 <section class="card"><h2>兩座機場</h2>
 <h3>臺灣桃園國際機場</h3><p>台灣最主要的國際機場，有兩條平行跑道（05L/23R、05R/23L）。遊戲裡會看到停機坪上的飛機、空橋、地勤車輛、消防車水門禮，以及在跑道旁揮手道別的地勤人員。</p>
-<h3>東京成田國際機場</h3><p>位於千葉縣，是東京的主要國際門戶之一。遊戲中從南方經房總半島對準 34L 跑道，以 ILS 儀器進場降落。</p></section>'''
-urls.append(page('/route/', 'zh-Hant', '桃園飛東京成田航線介紹：距離、飛行時間與沿途景點｜飛向東京',
-                 '桃園（TPE）飛東京成田（NRT）航線介紹：直線距離約 2,180 公里、實際飛行約 3 小時，沿途經過龜山島、沖繩、屋久島、紀伊半島與富士山。在瀏覽器免費體驗這條航線。',
-                 '桃園 → 東京成田航線', 'TPE ✈ NRT', '約 2,180 公里、實際飛行約 3 小時的熱門航線。在遊戲裡 5 分鐘就能飛完，沿途看真實的海岸與山脈。',
+<h3>東京成田國際機場</h3><p>位於千葉縣，是東京的主要國際門戶之一。遊戲中從南方經房總半島對準 34L 跑道，以 ILS 儀器進場降落。</p>
+<h3>大阪關西國際機場</h3><p>建在大阪灣的海上人工島，跑道四面環海。遊戲中從西南方的海面進場 06R 跑道。</p>
+<h3>沖繩那霸機場</h3><p>沖繩的主要機場，緊鄰海岸。遊戲中從北方沿海岸進場 18 號跑道。</p></section>'''
+urls.append(page('/route/', 'zh-Hant', '桃園飛東京成田、大阪關西、沖繩那霸航線介紹：距離與飛行時間｜飛向日本',
+                 '桃園（TPE）飛東京成田（NRT）、大阪關西（KIX）、沖繩那霸（OKA）航線介紹：距離、實際飛行時間與沿途景點（龜山島、沖繩、屋久島、紀伊半島、富士山）。在瀏覽器免費體驗。',
+                 '桃園飛日本航線', 'TPE ✈ NRT・KIX・OKA', '從桃園出發，飛往東京成田、大阪關西或沖繩那霸。在遊戲裡幾分鐘就能飛完，沿途看真實的海岸與山脈。',
                  route_body, [{'@context': 'https://schema.org', '@type': 'Article', 'headline': '桃園飛東京成田航線介紹',
                                'author': {'@type': 'Organization', 'name': 'sectools.tw', 'url': 'https://sectools.tw/'},
                                'publisher': {'@type': 'Organization', 'name': 'sectools.tw'}, 'datePublished': TODAY, 'dateModified': TODAY,
@@ -140,7 +147,8 @@ qas = [
     ('「飛向東京」要錢嗎？需要下載嗎？', '完全免費，不需要下載或註冊，用手機或電腦的瀏覽器打開 airplane.sectools.tw 就能玩。'),
     ('手機可以玩嗎？要直拿還是橫拿？', '可以，介面針對直拿手機設計，單手就能操作；橫拿也支援。可選拖曳、按鈕或傾斜三種操控方式。'),
     ('會不會很難？會墜機嗎？', '起飛、巡航、降落都有自動駕駛協助，你只需要控制方向穿過圓環。另有保護機制，避免把飛機壓到地面或偏離跑道。'),
-    ('一局要玩多久？', '大約 4 到 5 分鐘。第二次飛行起會自動跳過登機，巡航也會自動快轉。'),
+    ('一局要玩多久？', '大約 4 到 6 分鐘。第二次飛行起會自動跳過登機，巡航也會自動快轉。'),
+    ('可以飛哪些航線？', '目前從桃園出發，可以飛往東京成田、大阪關西與沖繩那霸三個目的地，在選單的「目的地」切換。'),
     ('遊戲裡的地形是真的嗎？', '是的。地形高度來自美國地質調查局（USGS）的 SRTM、GMTED2010 與美國國家海洋暨大氣總署（NOAA）的 ETOPO1 公開資料，地表顏色來自 NASA Blue Marble 衛星合成影像。'),
     ('資安航空是真的航空公司嗎？', '不是。「資安航空 SecTools Airlines」是 sectools.tw 為這款遊戲設計的虛構航空公司，與任何真實航空公司無關。'),
     ('進度會保存嗎？', '金幣、塗裝、成就與最佳分數會存在你這台裝置的瀏覽器中。換裝置或清除瀏覽器資料後會重新開始。'),
@@ -163,7 +171,7 @@ en_body = '''<section class="card"><h2>Fly from Taipei to Tokyo in five minutes<
 <div class="tile"><b>🎙️ Radio & cabin</b>Tower clearances with pilot readbacks, a flight-attendant safety briefing and captain announcements.</div>
 <div class="tile"><b>🎰 Liveries & daily challenge</b>Collect liveries from the SecTools Airlines gacha and compare scores on the daily route.</div>
 </div></section>
-<section class="card"><h2>About the route</h2><p>Taipei Taoyuan (TPE) to Tokyo Narita (NRT) is roughly 2,180 km (about 1,180 nautical miles) and usually takes around three hours. In the game, cruise is fast-forwarded so a full flight takes about four to five minutes.</p></section>'''
+<section class="card"><h2>Three routes from Taipei</h2><p>Fly from Taipei Taoyuan (TPE) to Tokyo Narita (NRT, about 2,180 km), Osaka Kansai (KIX, about 1,700 km, landing on an island in Osaka Bay) or Okinawa Naha (OKA, about 650 km). Cruise is fast-forwarded, so a full flight takes about four to six minutes.</p></section>'''
 urls.append(page('/en/', 'en', 'Fly to Tokyo – Free Browser Flight Game from Taipei to Narita | SecTools Airlines',
                  'Free 3D flight game in your browser: fly from Taiwan Taoyuan (TPE) to Tokyo Narita (NRT) over real terrain. One-thumb mobile controls, automatic takeoff and landing, combos, passenger comfort and daily challenges.',
                  'Fly to Tokyo', 'SecTools Airlines · Browser flight game', 'Taipei → Tokyo Narita in about five minutes. Free, no download, made for phones.',

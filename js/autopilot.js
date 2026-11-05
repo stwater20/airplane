@@ -1,6 +1,6 @@
-import { ROUTE, toWorld } from './geo.js?v=20261104214437';
-import { runways, RUNWAY_Y, terrainHeight } from './world.js?v=20261104214437';
-import { GEAR_H } from './aircraft.js?v=20261104214437';
+import { ROUTE, ROUTES, toWorld } from './geo.js?v=20261105181329';
+import { runways, RUNWAY_Y, terrainHeight } from './world.js?v=20261105181329';
+import { GEAR_H } from './aircraft.js?v=20261105181329';
 
 const D2R = Math.PI / 180, R2D = 180 / Math.PI;
 const KT = 0.514444, FT = 0.3048;
@@ -19,6 +19,7 @@ export class Autopilot {
     this.spd = 280;          // kt IAS
     this.vsMax = 2500;       // fpm
     this.wp = 1;             // 目前航路點
+    this.dest = 'NRT';
     this.route = ROUTE.map((p) => ({ ...p, ...toWorld(p.lon, p.lat) }));
     this.ils = null;
     this.msg = '';
@@ -26,8 +27,15 @@ export class Autopilot {
     this.assistGain = 0;
   }
 
+  // 切換目的地：航路與 ILS 跑道
+  setRoute(dest) {
+    this.dest = ROUTES[dest] ? dest : 'NRT';
+    this.route = ROUTES[this.dest].map((p) => ({ ...p, ...toWorld(p.lon, p.lat) }));
+    this.ils = null; this.wp = 1;
+  }
+
   ilsRunway() {
-    if (!this.ils) this.ils = runways.find((r) => r.ils);
+    if (!this.ils) this.ils = runways.find((r) => r.ils && r.airport === this.dest) || runways.find((r) => r.ils);
     return this.ils;
   }
 

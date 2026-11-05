@@ -1,7 +1,8 @@
 // 輕鬆模式：自動起飛／巡航／降落，玩家只需拖曳讓飛機穿過金色圓環
 import * as THREE from 'three';
-import { RUNWAY_Y, terrainHeight } from './world.js?v=20261104214437';
-import { GEAR_H } from './aircraft.js?v=20261104214437';
+import { RUNWAY_Y, terrainHeight } from './world.js?v=20261105181329';
+import { DESTS } from './geo.js?v=20261105181329';
+import { GEAR_H } from './aircraft.js?v=20261105181329';
 
 const D2R = Math.PI / 180, KT = 0.514444, FT = 0.3048;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -51,8 +52,8 @@ function pickVoice(who, idx) {
 // 起飛前的空服員安全示範（英文＋中文字幕）
 const BRIEFING = [
   ['captain', 'This flight experience is made and maintained by sectools dot T W.', '本遊戲由 sectools.tw 製作與維護。'],
-  ['cabin', 'Ladies and gentlemen, welcome aboard SecTools Airlines flight one two three to Tokyo Narita. Our flight time today will be about three hours.',
-    '各位旅客您好，歡迎搭乘資安航空 123 號班機前往東京成田，今天的飛行時間約三小時。'],
+  ['cabin', 'Ladies and gentlemen, welcome aboard SecTools Airlines flight one two three to {CITY}. Our flight time today will be {TIME}.',
+    '各位旅客您好，歡迎搭乘資安航空 123 號班機前往{ZH}，今天的飛行時間{TIMEZH}。'],
   ['cabin', 'Please take a moment to review the safety features of this aircraft. To fasten your seatbelt, insert the metal tip into the buckle and pull the strap tight. To release, lift the buckle.',
     '請注意本機的安全須知。繫上安全帶時，將金屬扣片插入扣環並拉緊；解開時，掀起扣環即可。'],
   ['cabin', 'In the unlikely event of a loss of cabin pressure, oxygen masks will drop from above. Pull the mask toward you, place it over your nose and mouth, and breathe normally. Secure your own mask before helping others.',
@@ -105,9 +106,19 @@ export class Casual {
   }
 
   // 只講一次的廣播。who：tower / atc / pilot / crew / captain / cabin / gpws；zh：中文字幕；onDone：講完時呼叫
+  get D() { return DESTS[this.sim.ap.dest] || DESTS.NRT; }
+
+  // 把廣播裡的 {CITY}、{TOWER} 等換成目前目的地
+  fill(t) {
+    const D = this.D;
+    const map = { FULL: D.full, FULLZH: D.fullZh, SHORT: D.tower.replace(' Tower', ''), TOWER: D.tower, APP: D.approach, RWY: D.rwy, CITY: D.city, TIME: D.time, TIMEZH: D.timeZh, ZH: D.zh };
+    return (t || '').replace(/\{(\w+)\}/g, (m, k) => map[k] ?? m);
+  }
+
   say(id, text, who = 'captain', zh = '', onDone = null) {
     if (this.said.has(id)) return;
     this.said.add(id);
+    text = this.fill(text); zh = this.fill(zh);
     const dur = Math.max(4, text.length / 13);
     const show = () => { this.subtitle = text; this.subZh = zh; this.speaker = who; this.subT = dur + 1; };
     let doneCalled = false;
@@ -179,11 +190,11 @@ export class Casual {
     if (ac.touchdown) {
       if (this.stage !== 'done') {
         this.setStage('done');
-        this.say('gnd', `${CS}, welcome to Narita. Vacate at the next taxiway and contact Ground on one two one decimal eight five.`, 'tower');
+        this.say('gnd', `${CS}, welcome to {SHORT}. Vacate at the next taxiway and contact Ground on one two one decimal eight five.`, 'tower');
         this.say('gndrb', `Next taxiway, Ground one two one decimal eight five, ${CS}. Thank you.`, 'pilot');
         const tokyo = new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Tokyo', hour: 'numeric', minute: '2-digit' });
-        this.say('wel', `Ladies and gentlemen, welcome to Tokyo Narita International Airport. The local time is ${tokyo}. Please remain seated with your seatbelt fastened until the captain turns off the seatbelt sign. Thank you for flying SecTools Airlines.`, 'cabin',
-          `各位旅客，歡迎來到東京成田國際機場，當地時間 ${new Date().toLocaleTimeString('zh-TW', { timeZone: 'Asia/Tokyo', hour: 'numeric', minute: '2-digit' })}。在安全帶指示燈熄滅前請留在座位上，感謝您搭乘資安航空。`);
+        this.say('wel', `Ladies and gentlemen, welcome to {FULL}. The local time is ${tokyo}. Please remain seated with your seatbelt fastened until the captain turns off the seatbelt sign. Thank you for flying SecTools Airlines.`, 'cabin',
+          `各位旅客，歡迎來到{FULLZH}，當地時間 ${new Date().toLocaleTimeString('zh-TW', { timeZone: 'Asia/Tokyo', hour: 'numeric', minute: '2-digit' })}。在安全帶指示燈熄滅前請留在座位上，感謝您搭乘資安航空。`);
       }
       return;
     }
@@ -195,8 +206,8 @@ export class Casual {
       this.sim.timeScale = 1;
       if (this.boardT === 0) {
         b.start(ac);
-        this.say('gate', 'Good afternoon, ladies and gentlemen. SecTools Airlines flight one two three to Tokyo Narita is now boarding. Please have your boarding pass and passport ready.', 'gate',
-          '各位旅客午安，資安航空 123 號班機飛往東京成田，現在開始登機，請準備好登機證與護照。');
+        this.say('gate', 'Good afternoon, ladies and gentlemen. SecTools Airlines flight one two three to {CITY} is now boarding. Please have your boarding pass and passport ready.', 'gate',
+          '各位旅客午安，資安航空 123 號班機飛往{ZH}，現在開始登機，請準備好登機證與護照。');
         this.say('seat', 'Welcome aboard. Please find your seat and place your carry-on bags in the overhead bins.', 'cabin', '歡迎登機，請找到您的座位，並將隨身行李放入上方置物櫃。');
       }
       this.boardT += dt;
@@ -264,8 +275,8 @@ export class Casual {
         this.setBelt(false);
         this.say('belt', 'Ladies and gentlemen, the captain has turned off the seatbelt sign. You may now move about the cabin. We will shortly begin our meal service.', 'cabin',
           '各位旅客，機長已關閉安全帶指示燈，您可以在客艙內走動。我們即將開始供應餐點。');
-        this.say('crz', 'Ladies and gentlemen, this is your captain speaking. We are climbing to our cruising altitude of thirty five thousand feet. Flight time to Tokyo Narita is about three hours. Sit back, relax, and enjoy the flight.', 'captain',
-          '各位旅客，我是機長。我們正爬升至三萬五千呎的巡航高度，到東京成田約需三小時，請放鬆享受這趟旅程。');
+        this.say('crz', 'Ladies and gentlemen, this is your captain speaking. We are climbing to our cruising altitude of thirty five thousand feet. Flight time to {CITY} is {TIME}. Sit back, relax, and enjoy the flight.', 'captain',
+          '各位旅客，我是機長。我們正爬升至三萬五千呎的巡航高度，到{ZH}{TIMEZH}，請放鬆享受這趟旅程。');
       }
     } else if (this.stage === 'cruise') {
       ap.assistGain = 1;
@@ -275,7 +286,7 @@ export class Casual {
       // 沿途觀光廣播（以通過的航路點判斷）
       if (ap.wp >= 3) this.say('meal', 'Ladies and gentlemen, we will now be serving dinner. Today we have chicken with rice, or beef noodles. Please let us know if you need anything.', 'cabin',
         '各位旅客，我們現在開始供應晚餐，今天有雞肉飯和牛肉麵，有任何需要請告訴我們。');
-      if (ap.wp >= 4) this.say('oki', 'Ladies and gentlemen, if you look out the left side of the aircraft, you can see the islands of Okinawa below us.', 'captain',
+      if (ap.wp >= 4) if (ap.dest === 'NRT') this.say('oki', 'Ladies and gentlemen, if you look out the left side of the aircraft, you can see the islands of Okinawa below us.', 'captain',
         '各位旅客，從飛機左側窗外可以看到下方的沖繩群島。');
       if (ap.wp >= 5) {
         this.setBelt(true);
@@ -283,14 +294,14 @@ export class Casual {
           '各位旅客，機長已開啟安全帶指示燈，前方可能有輕微亂流，請回座位並繫好安全帶。');
       }
       if (ap.wp >= 6) {
-        this.say('yak', 'On the left, you may see Yakushima island and the southern coast of Kyushu.', 'captain', '左側可以看到屋久島與九州南部海岸。');
+        if (ap.dest === 'NRT') this.say('yak', 'On the left, you may see Yakushima island and the southern coast of Kyushu.', 'captain', '左側可以看到屋久島與九州南部海岸。');
         this.say('smooth', 'We are through the turbulence. The seatbelt sign is now off.', 'captain', '我們已通過亂流區，安全帶指示燈已關閉。', () => this.setBelt(false));
       }
       if (ap.wp >= 7) this.say('duty', 'Ladies and gentlemen, our duty free service will begin shortly. Please refer to the catalog in your seat pocket.', 'cabin',
         '各位旅客，機上免稅品販售即將開始，請參考座椅前方口袋中的目錄。');
       if (ap.wp >= 7) this.say('sec', 'Ladies and gentlemen, for in-flight entertainment, please try the SecTools Airlines capsule toy game at gacha dash sho dot sectools dot T W. Thank you for flying SecTools Airlines.', 'cabin',
         '各位旅客，機上娛樂推薦「資安航空扭蛋」gacha-sho.sectools.tw，降落後歡迎去轉一顆！感謝您搭乘資安航空。');
-      if (ap.wp >= 8) this.say('kii', 'We are now passing the Kii Peninsula. The city of Osaka is off to our left. About thirty minutes to landing.', 'captain',
+      if (ap.wp >= 8) if (ap.dest === 'NRT') this.say('kii', 'We are now passing the Kii Peninsula. The city of Osaka is off to our left. About thirty minutes to landing.', 'captain',
         '我們正飛越紀伊半島，大阪在左側，大約三十分鐘後降落。');
       if (Math.hypot(dest.x - ac.pos.x, dest.z - ac.pos.z) < 70 * 1852) this.toApproach();
     } else if (this.stage === 'approach') {
@@ -299,11 +310,11 @@ export class Casual {
       const il = ap.ilsData(ac);
       if (il.dist < 7 * 1852) ac.flaps = 4;
       if (this.spawned === 2) this.startTurbulence('app', 5);
-      if (il.dist < 9 * 1852) this.say('fuji', 'Ladies and gentlemen, on a clear day you can see Mount Fuji out the left windows.', 'captain', '天氣晴朗時，從左側窗外可以看到富士山。');
+      if (il.dist < 9 * 1852) if (ap.dest === 'NRT') this.say('fuji', 'Ladies and gentlemen, on a clear day you can see Mount Fuji out the left windows.', 'captain', '天氣晴朗時，從左側窗外可以看到富士山。');
       if (il.dist < 7.5 * 1852) this.say('ccl', 'Cabin crew, please take your seats for landing.', 'captain', '空服員請就座，準備降落。');
       if (il.dist < 6 * 1852) {
-        this.say('land', `${CS}, Narita Tower, runway three four left, wind three four zero at eight knots, cleared to land.`, 'tower');
-        this.say('landrb', `Cleared to land, runway three four left, ${CS}.`, 'pilot');
+        this.say('land', `${CS}, {TOWER}, runway {RWY}, wind three four zero at eight knots, cleared to land.`, 'tower');
+        this.say('landrb', `Cleared to land, runway {RWY}, ${CS}.`, 'pilot');
       }
       const raFt = agl / FT;
       for (const c of CALLOUTS) if (raFt < c && this.prevRa >= c) this.say('ra' + c, CALLOUT_TEXT[c], 'gpws');
@@ -314,7 +325,7 @@ export class Casual {
     }
   }
 
-  // 傳送到成田 34L 五邊 12 浬處
+  // 傳送到目的地 ILS 跑道五邊 8 浬處
   toApproach() {
     const { ac, ap } = this;
     if (this.ring) { this.scene.remove(this.ring.mesh); this.ring = null; }
@@ -337,11 +348,11 @@ export class Casual {
     for (const k of ['oki', 'yak', 'kii', 'belt', 'crz', 'meal', 'turb', 'smooth', 'duty', 'sec']) this.said.add(k);
     this.setBelt(true);
     this.prevRa = 99999; this.cruiseT = 0;
-    this.setStage('approach', '抵達成田！跟著圓環降落');
-    this.say('app', `${CS}, Narita Approach. Cleared ILS runway three four left approach.`, 'atc');
-    this.say('apprb', `Cleared ILS three four left, ${CS}.`, 'pilot');
-    this.say('des', 'Ladies and gentlemen, this is your captain. We have started our approach into Tokyo Narita. Cabin crew, prepare for landing.', 'captain',
-      '各位旅客，我是機長，我們已開始進場東京成田。空服員請準備降落。');
+    this.setStage('approach', `抵達${this.D.zh}！跟著圓環降落`);
+    this.say('app', `${CS}, {APP}. Cleared ILS runway {RWY} approach.`, 'atc');
+    this.say('apprb', `Cleared ILS {RWY}, ${CS}.`, 'pilot');
+    this.say('des', 'Ladies and gentlemen, this is your captain. We have started our approach into {CITY}. Cabin crew, prepare for landing.', 'captain',
+      '各位旅客，我是機長，我們已開始進場{ZH}。空服員請準備降落。');
     if (!this.short) this.say('prep', 'Ladies and gentlemen, please return to your seat and fasten your seatbelt. Make sure your seat back is upright, your tray table is stowed, and your window shade is open. Thank you.', 'cabin',
       '各位旅客，請回到座位繫好安全帶，豎直椅背、收好餐桌並打開遮陽板，謝謝。');
   }
@@ -576,7 +587,7 @@ export class Casual {
       const left = Math.hypot(r1.x - ac.pos.x, r1.z - ac.pos.z);
       const f = (clamp(1 - left / total, 0, 1) * 100).toFixed(1) + '%';
       $('hFill').style.width = f; $('hPlane').style.left = f;
-      setText('hLeft', `NRT ${Math.round(left / 1000)} km`);
+      setText('hLeft', `${this.D.code} ${Math.round(left / 1000)} km`);
     }
 
     // 搖桿位置提示（未觸控時）

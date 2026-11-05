@@ -1,7 +1,7 @@
 // 乘客登機：桃園機場遠端停機位，乘客從接駁巴士走上登機梯進入飛機
 import * as THREE from 'three';
-import { runways, RUNWAY_Y } from './world.js?v=20261104214437';
-import { GEAR_H } from './aircraft.js?v=20261104214437';
+import { runways, RUNWAY_Y } from './world.js?v=20261105181329';
+import { GEAR_H } from './aircraft.js?v=20261105181329';
 
 const TOTAL = 180;            // 總乘客數
 const WALKERS = 36;           // 同時在走的人數

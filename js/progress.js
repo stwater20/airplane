@@ -28,6 +28,9 @@ export const ACHIEVEMENTS = [
   { id: 'photo', name: '空中攝影師', desc: '在飛行中拍一張照片' },
   { id: 'veteran', name: '資深機長', desc: '累積完成 10 次飛行' },
   { id: 'comfort', name: '五星服務', desc: '乘客滿意度 95% 以上完成飛行' },
+  { id: 'kix', name: '關西達人', desc: '降落大阪關西機場' },
+  { id: 'oka', name: '沖繩假期', desc: '降落沖繩那霸機場' },
+  { id: 'allroutes', name: '環遊資安航線', desc: '三條航線都飛過一次' },
 ];
 export const todayKey = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);   // 以台灣時間換日
 export const todaySeed = () => Number(todayKey().replace(/-/g, ''));

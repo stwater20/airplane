@@ -1,7 +1,7 @@
 // 真實地形：USGS/NOAA 高程（公有領域）＋ NASA Blue Marble 地表顏色，近距離疊加程序細節
 // 圖磚由 scripts/build_tiles.py 產生，放在 tiles/
 import * as THREE from 'three';
-import { toWorld, toLonLat, AIRPORTS } from './geo.js?v=20261104214437';
+import { toWorld, toLonLat, AIRPORTS } from './geo.js?v=20261105181329';
 
 const BASE = 'tiles/';
 const SEG = 32;                 // 每個圖磚網格分段數
@@ -15,12 +15,22 @@ const lon2x = (lon, z) => (lon + 180) / 360 * 2 ** z;
 const lat2y = (lat, z) => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * 2 ** z; };
 
 // 機場周邊壓平，讓手工跑道與停機坪正常顯示
-const FLAT = Object.values(AIRPORTS).map((a) => toWorld(a.runways[0].lon, a.runways[0].lat));
-function flatten(wx, wz, h) {
+// 內陸機場：圓形壓平；海上／臨海機場（flat: 'box'）：只在跑道周圍做出長方形陸地
+const FLAT = Object.values(AIRPORTS).map((a) => {
+  const r = a.runways[0], c = toWorld(r.lon, r.lat), hr = r.heading * Math.PI / 180;
+  return { box: a.flat === 'box', x: c.x, z: c.z, dx: Math.sin(hr), dz: -Math.cos(hr), half: r.length / 2 + 900, wid: 1100 };
+});
+function flatten(wx, wz) {
   let f = 1;
   for (const p of FLAT) {
-    const d = Math.hypot(wx - p.x, wz - p.z);
-    const t = Math.min(1, Math.max(0, (d - 4000) / 4000));
+    let t;
+    if (p.box) {
+      const ox = wx - p.x, oz = wz - p.z;
+      const e = Math.max(Math.abs(ox * p.dx + oz * p.dz) - p.half, Math.abs(-ox * p.dz + oz * p.dx) - p.wid);
+      t = Math.min(1, Math.max(0, e / 500));
+    } else {
+      t = Math.min(1, Math.max(0, (Math.hypot(wx - p.x, wz - p.z) - 4000) / 4000));
+    }
     f = Math.min(f, t * t * (3 - 2 * t));
   }
   return f;
@@ -103,10 +113,12 @@ export class Terrain {
       const detail = this.detail;
       m.onBeforeCompile = (sh) => {
         sh.uniforms.detailMap = { value: detail };
-        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;')
-          .replace('#include <project_vertex>', '#include <project_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;\nuniform sampler2D detailMap;')
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;\nattribute float aFill;\nvarying float vFill;')
+          .replace('#include <project_vertex>', '#include <project_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvFill = aFill;');
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;\nvarying float vFill;\nuniform sampler2D detailMap;')
           .replace('#include <map_fragment>', `#include <map_fragment>
+            // 填海造陸處（衛星影像是海）改成草地色
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.30, 0.40, 0.22), vFill);
             float dk = clamp(1.0 - length(cameraPosition - vWP) / 18000.0, 0.0, 1.0) * 0.75;
             vec3 det = texture2D(detailMap, vWP.xz / 1400.0).rgb * texture2D(detailMap, vWP.xz / 260.0).rgb * 3.2;
             diffuseColor.rgb *= mix(vec3(1.0), det, dk);`);
@@ -123,7 +135,7 @@ export class Terrain {
     const span = 1 / 2 ** (z - 8);
     const ox = (x % 2 ** (z - 8)) * span, oy = (y % 2 ** (z - 8)) * span;
     const N = SEG, step = (n - 1) / N;
-    const pos = new Float32Array((N + 1) ** 2 * 3), uv = new Float32Array((N + 1) ** 2 * 2), col = new Float32Array((N + 1) ** 2 * 4);
+    const pos = new Float32Array((N + 1) ** 2 * 3), uv = new Float32Array((N + 1) ** 2 * 2), col = new Float32Array((N + 1) ** 2 * 4), fill = new Float32Array((N + 1) ** 2);
     let k = 0;
     for (let j = 0; j <= N; j++) {
       const lat = y2lat(y + j / N, z);
@@ -138,6 +150,7 @@ export class Terrain {
         uv.set([ox + span * i / N, 1 - (oy + span * j / N)], k * 2);
         const snow = h > 3100 ? 1.45 : 1;
         col.set([snow, snow, snow, land ? 1 : 0], k * 4);
+        fill[k] = h <= 0.5 && f < 1 ? 1 : 0;
         k++;
       }
     }
@@ -150,6 +163,7 @@ export class Terrain {
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     geo.setAttribute('color', new THREE.BufferAttribute(col, 4));
+    geo.setAttribute('aFill', new THREE.BufferAttribute(fill, 1));
     geo.setIndex(idx);
     geo.computeVertexNormals();
     geo.computeBoundingSphere();

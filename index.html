@@ -151,6 +151,7 @@
   #dpad .left { left: 0; top: 42px; }
   #dpad .right { right: 0; top: 42px; }
   .ctrlSeg { margin-top: 8px; }
+  .destSeg { margin-top: 6px; }
   body.btnmode #skipBtn { bottom: calc(285px + var(--sb)); }
   @media (min-width: 600px) { body.btnmode #skipBtn { bottom: calc(150px + var(--sb)); } }
   @media (min-width: 600px) { #dpad { left: 200px; transform: none; bottom: calc(80px + var(--sb)); } }
@@ -366,9 +367,9 @@
   <div class="sheet">
     <div class="grabber"></div>
     <div class="eyebrow">資安航空 SecTools Airlines × <a href="https://gacha-sho.sectools.tw/" target="_blank" rel="noopener">資安航空扭蛋</a></div>
-    <h1 class="title">飛向東京</h1>
+    <h1 class="title">飛向日本</h1>
     <p class="byline">由 <a href="https://sectools.tw/" target="_blank" rel="noopener">sectools.tw</a> 製作與維護</p>
-    <p class="subtitle">桃園 TPE → 東京成田 NRT。起飛、巡航、降落都自動完成，你只要用手指操控，讓飛機穿過金色圓環。</p>
+    <p class="subtitle">從桃園起飛，飛往東京成田、大阪關西或沖繩那霸。起飛、巡航、降落都自動完成，你只要用手指操控，讓飛機穿過金色圓環。</p>
     <div class="list">
       <div class="row"><div class="ic" style="background:var(--blue)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M12 10.5V9a1.5 1.5 0 0 1 3 0v2"/><path d="M15 11a1.5 1.5 0 0 1 3 0v3a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L4.5 15a1.5 1.5 0 0 1 2.4-1.8L9 15"/></svg></div>
         <div class="txt">按住螢幕拖曳<small>左右轉彎・上下爬升或下降</small></div></div>
@@ -377,6 +378,11 @@
       <div class="row"><div class="ic" style="background:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></div>
         <div class="txt">真實機上廣播<small>塔台通話、空服員安全示範與英文語音</small></div></div>
     </div>
+    <p class="sectionTitle" style="margin-top:14px">目的地</p>
+    <div class="seg destSeg" role="radiogroup" aria-label="目的地">
+      <button data-dest="NRT">🗼 東京成田</button><button data-dest="KIX">🏯 大阪關西</button><button data-dest="OKA">🏝️ 沖繩那霸</button>
+    </div>
+    <p class="foot" id="destInfo" style="margin-top:6px"></p>
     <div class="seg" role="radiogroup" aria-label="飛行時段">
       <button data-tod="day">☀️ 白天</button><button data-tod="dawn">🌅 日出</button><button data-tod="night">🌙 夜晚</button><button data-tod="random">🎲 隨機</button>
     </div>
@@ -451,6 +457,6 @@
   </div>
 </div>
 
-<script type="module" src="js/main.js?v=20261104214437"></script>
+<script type="module" src="js/main.js?v=20261105181329"></script>
 </body>
 </html>

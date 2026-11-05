@@ -25,10 +25,15 @@ TERRAIN = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.p
 IMAGERY = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg'
 
 REGION = (118.0, 21.0, 146.0, 42.0)          # lon0, lat0, lon1, lat1
+ROUTES = [[(121.236, 25.070), (122.30, 25.75), (124.60, 26.70), (127.70, 27.40), (129.60, 29.10), (131.40, 31.20),
+           (133.40, 32.80), (134.60, 33.90), (135.092, 34.353), (135.2445, 34.4320)],          # 關西
+          [(121.236, 25.070), (122.30, 25.75), (124.80, 26.40), (126.90, 26.75), (127.646, 26.58),
+           (127.646, 26.343), (127.6465, 26.1958)]]                                              # 那霸
 ROUTE = [(121.236, 25.070), (122.30, 25.75), (124.60, 26.70), (127.70, 27.40), (129.60, 29.10),
          (131.40, 31.20), (134.10, 32.90), (136.00, 33.30), (139.40, 34.60), (140.25, 35.05),
          (140.52, 35.52), (140.386, 35.765)]
-AIRPORTS = [(121.233, 25.077), (140.386, 35.772)]
+ROUTES.append(ROUTE)
+AIRPORTS = [(121.233, 25.077), (140.386, 35.772), (135.2445, 34.4320), (127.6465, 26.1958)]
 NEAR_Z11, NEAR_Z12, NEAR_Z14 = 1.3, 0.45, 0.12   # 度
 
 
@@ -49,7 +54,7 @@ def seg_dist(p, a, b):
     dx, dy = bx - ax, by - ay
     t = max(0, min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy or 1)))
     return math.hypot(px - ax - t * dx, py - ay - t * dy)
-def route_dist(lon, lat): return min(seg_dist((lon, lat), ROUTE[i], ROUTE[i + 1]) for i in range(len(ROUTE) - 1))
+def route_dist(lon, lat): return min(seg_dist((lon, lat), R[i], R[i + 1]) for R in ROUTES for i in range(len(R) - 1))
 def airport_dist(lon, lat): return min(math.hypot((lon - a) * math.cos(math.radians(lat)), lat - b) for a, b in AIRPORTS)
 
 

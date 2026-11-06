@@ -38,6 +38,34 @@ export class SpeedFX {
     });
   }
 
+  // 雨絲：固定在空氣中往下落，飛機前進時迎面打來
+  initRain(scene) {
+    const N = 900;
+    this.rainPts = Array.from({ length: N }, () => new THREE.Vector3((Math.random() - 0.5) * 80, (Math.random() - 0.5) * 50, (Math.random() - 0.5) * 80));
+    this.rainGeo = new THREE.BufferGeometry();
+    this.rainGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 6), 3));
+    this.rain = new THREE.LineSegments(this.rainGeo, new THREE.LineBasicMaterial({ color: 0xc8d6e6, transparent: true, opacity: 0.45, depthWrite: false, fog: false }));
+    this.rain.frustumCulled = false; this.rain.visible = false;
+    scene.add(this.rain);
+  }
+
+  updateRain(ac, camera, dtReal, timeScale, on) {
+    if (!this.rain) return;
+    this.rain.visible = on && timeScale <= 4;
+    if (!this.rain.visible) return;
+    const rel = new THREE.Vector3(0, -9, 0).sub(ac.vel);              // 雨滴相對鏡頭的速度
+    const pos = this.rainGeo.attributes.position.array, cam = camera.position;
+    const len = Math.min(6, 0.6 + rel.length() * 0.025);
+    const d = rel.clone().normalize();
+    this.rainPts.forEach((p, i) => {
+      p.addScaledVector(rel, dtReal * timeScale * 0.2);
+      for (const ax of ['x', 'y', 'z']) { const half = ax === 'y' ? 25 : 40; if (p[ax] < -half) p[ax] += half * 2; else if (p[ax] > half) p[ax] -= half * 2; }
+      const x = cam.x + p.x, y = cam.y + p.y, z = cam.z + p.z;
+      pos.set([x, y, z, x - d.x * len, y - d.y * len, z - d.z * len], i * 6);
+    });
+    this.rainGeo.attributes.position.needsUpdate = true;
+  }
+
   reset() { for (const t of this.trails) t.hist.length = 0; for (const p of this.pts) p.x = Infinity; }
 
   update(ac, camera, dtReal, simDt, timeScale) {

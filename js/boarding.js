@@ -1,8 +1,8 @@
 // 乘客登機：桃園機場遠端停機位
 // 接駁巴士 → 登機梯車 → 左前門；地面有導引線、機位編號、安全錐，引導員揮棒，右側有行李輸送帶車、行李拖車與空廚車
 import * as THREE from 'three';
-import { runways, RUNWAY_Y } from './world.js?v=20261105230830';
-import { GEAR_H } from './aircraft.js?v=20261105230830';
+import { runways, RUNWAY_Y } from './world.js?v=20261106162641';
+import { GEAR_H } from './aircraft.js?v=20261106162641';
 
 const TOTAL = 180;
 const WALKERS = 30;

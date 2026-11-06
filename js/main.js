@@ -1,21 +1,41 @@
 import * as THREE from 'three';
-import { buildWorld, runways, terrainHeight } from './world.js?v=20261105230830';
-import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261105230830';
-import { Autopilot } from './autopilot.js?v=20261105230830';
-import { HUD } from './hud.js?v=20261105230830';
-import { Casual } from './casual.js?v=20261105230830';
-import { GameAudio } from './audio.js?v=20261105230830';
-import { SpeedFX } from './effects.js?v=20261105230830';
-import { Taoyuan } from './taoyuan.js?v=20261105230830';
-import { DESTS } from './geo.js?v=20261105230830';
-import { Boarding } from './boarding.js?v=20261105230830';
-import { progress, LIVERIES, GACHA_COST, ACHIEVEMENTS, todaySeed, todayKey } from './progress.js?v=20261105230830';
-import { Terrain } from './terrain.js?v=20261105230830';
-import { Scenery } from './scenery.js?v=20261105230830';
-import { Traffic } from './traffic.js?v=20261105230830';
+import { buildWorld, runways, terrainHeight } from './world.js?v=20261106162641';
+import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261106162641';
+import { Autopilot } from './autopilot.js?v=20261106162641';
+import { HUD } from './hud.js?v=20261106162641';
+import { Casual } from './casual.js?v=20261106162641';
+import { GameAudio } from './audio.js?v=20261106162641';
+import { SpeedFX } from './effects.js?v=20261106162641';
+import { Taoyuan } from './taoyuan.js?v=20261106162641';
+import { DESTS } from './geo.js?v=20261106162641';
+import { Boarding } from './boarding.js?v=20261106162641';
+import { progress, LIVERIES, GACHA_COST, ACHIEVEMENTS, todaySeed, todayKey } from './progress.js?v=20261106162641';
+import { Terrain } from './terrain.js?v=20261106162641';
+import { Cockpit } from './cockpit.js?v=20261106162641';
+import { Scenery } from './scenery.js?v=20261106162641';
+import { Traffic } from './traffic.js?v=20261106162641';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
+// 自動畫質：依實際每秒畫面數調整解析度（手機上避免卡頓）
+const PR_MAX = Math.min(devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2);
+const quality = { pr: PR_MAX, acc: 0, frames: 0, cool: 0 };
+renderer.setPixelRatio(quality.pr);
+function adaptQuality(dt) {
+  if (document.hidden) return;
+  quality.acc += dt; quality.frames++; quality.cool -= dt;
+  if (quality.acc < 2) return;
+  const fps = quality.frames / quality.acc;
+  quality.acc = 0; quality.frames = 0;
+  if (quality.cool > 0) return;
+  let pr = quality.pr;
+  if (fps < 40) pr = Math.max(0.6, pr - 0.2);
+  else if (fps > 57) pr = Math.min(PR_MAX, pr + 0.1);
+  if (Math.abs(pr - quality.pr) > 0.01) {
+    quality.pr = pr; quality.cool = 3;
+    renderer.setPixelRatio(pr);
+    renderer.setSize(innerWidth, innerHeight);
+  }
+}
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.getElementById('view').appendChild(renderer.domElement);
@@ -33,6 +53,9 @@ const traffic = new Traffic(scene);
 const taoyuan = new Taoyuan(scene);
 const boarding = new Boarding(scene);
 const fx = new SpeedFX(scene);
+fx.initRain(scene);
+scene.add(camera);
+const cockpit = new Cockpit(camera);
 const ac = new Aircraft();
 scene.add(ac.mesh);
 const ap = new Autopilot();
@@ -43,7 +66,7 @@ ac.placeOnRunway(startRunway, -1);
 ap.hdg = startRunway.heading;
 
 boarding.start(ac);   // 首頁背景：停機坪上正在登機的飛機
-const sim = { ac, ap, camera, taoyuan, env, terrain, boarding, timeScale: 1, paused: true, camMode: 0, started: false, casual: true, voice: true, tilt: false };
+const sim = { ac, ap, camera, taoyuan, env, terrain, boarding, quality, timeScale: 1, paused: true, camMode: 0, started: false, casual: true, voice: true, tilt: false };
 sim.audio = new GameAudio();
 sim.runways = runways;
 window.__sim = sim;
@@ -282,6 +305,8 @@ applyLivery();
 const TODS = ['day', 'dawn', 'night'];
 function pickTime() {
   const t = progress.data.tod || 'day';
+  const w = progress.data.weather || 'clear';
+  env.weather = w === 'random' ? (Math.random() < 0.35 ? 'rain' : 'clear') : w;
   env.setTime(t === 'random' ? TODS[Math.floor(Math.random() * 3)] : t);
 }
 pickTime();
@@ -304,7 +329,7 @@ function startGame(easy, daily = false) {
   sim.autoUsed = sim.autoFly = false; sim.jumped = false;
   document.querySelector('[data-c="auto"]')?.classList.remove('on');
   casual.daily = daily ? todaySeed() : 0;
-  if (daily) env.setTime(['day', 'dawn', 'night'][todaySeed() % 3]); else pickTime();
+  if (daily) { env.weather = todaySeed() % 4 === 0 ? 'rain' : 'clear'; env.setTime(['day', 'dawn', 'night'][todaySeed() % 3]); } else pickTime();
   applyLivery();
   casual.short = progress.data.flights > 0;
   if (easy) { casual.reset(); casual.setStage(casual.stage, daily ? '📅 今日挑戰開始！' : casual.stage === 'boarding' ? '乘客登機中…（可按「跳過」）' : '空服員安全示範（可按「跳過」）'); } else toast('油門 R 推到 100%，速度 150 kt 時按 S/↓ 拉起');
@@ -439,6 +464,16 @@ function setCtrl(mode) {
 setCtrl(progress.data.ctrl || 'drag');
 document.querySelectorAll('[data-ctrl]').forEach((b) => b.addEventListener('click', () => setCtrl(b.dataset.ctrl)));
 
+// 天氣選擇
+document.querySelectorAll('[data-weather]').forEach((b) => {
+  b.classList.toggle('on', (progress.data.weather || 'clear') === b.dataset.weather);
+  b.addEventListener('click', () => {
+    progress.data.weather = b.dataset.weather; progress.save();
+    document.querySelectorAll('[data-weather]').forEach((x) => x.classList.toggle('on', x === b));
+    pickTime();
+  });
+});
+
 // 時段選擇
 document.querySelectorAll('[data-tod]').forEach((b) => {
   b.classList.toggle('on', (progress.data.tod || 'day') === b.dataset.tod);
@@ -476,6 +511,7 @@ function showResult() {
     if (casual.perfects >= 5) achieve('perfect5');
     if (env.mode === 'night') achieve('night');
     if (env.mode === 'dawn') achieve('dawn');
+    if (env.weather === 'rain') achieve('rain');
     if (sim.daily) achieve('daily');
     if (progress.data.flights >= 10) achieve('veteran');
     if (casual.comfort >= 95) achieve('comfort');
@@ -693,6 +729,7 @@ function updateCamera(dt) {
 function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(clock.getDelta(), 0.1);
+  adaptQuality(dt);
   if (sim.started && !sim.paused && !ac.crashed && !ac.landed) {
     readControls(dt);
     acc += dt * sim.timeScale;
@@ -725,6 +762,8 @@ function frame() {
   renderer.toneMappingExposure = env.exposure;
   ac.syncMesh();
   updateCamera(dt);
+  cockpit.update(dt, ac, ap, camera, sim.started && sim.camMode === 1);
+  fx.updateRain(ac, camera, dt, sim.started && !sim.paused ? sim.timeScale : 0, env.weather === 'rain');
   fx.dim = (env.mode === 'night' ? 0.35 : 1) * (sim.casual && casual.boostT > 0 ? 2.2 : 1);
   fx.update(ac, camera, dt, sim.started && !sim.paused ? dt * sim.timeScale : 0, sim.timeScale);
   renderer.render(scene, camera);

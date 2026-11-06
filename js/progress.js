@@ -31,6 +31,7 @@ export const ACHIEVEMENTS = [
   { id: 'kix', name: '關西達人', desc: '降落大阪關西機場' },
   { id: 'oka', name: '沖繩假期', desc: '降落沖繩那霸機場' },
   { id: 'allroutes', name: '環遊資安航線', desc: '三條航線都飛過一次' },
+  { id: 'rain', name: '雨中飛行', desc: '在雨天完成一次飛行' },
 ];
 export const todayKey = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);   // 以台灣時間換日
 export const todaySeed = () => Number(todayKey().replace(/-/g, ''));

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { COASTLINES, MOUNTAINS, AIRPORTS, EXTRA_CITIES, toWorld } from './geo.js?v=20261105230830';
+import { COASTLINES, MOUNTAINS, AIRPORTS, EXTRA_CITIES, toWorld } from './geo.js?v=20261106162641';
 
 export const RUNWAY_Y = 2.0;      // 跑道表面高度
 const LAND_Y = 1.0;
@@ -483,7 +483,22 @@ export function buildWorld(scene) {
       cityLights.visible = P.city;
       cityLights.material.opacity = mode === 'night' ? 0.95 : 0.35;
       this.exposure = P.exposure;
+      // 雨天：天空與海面變灰暗、能見度降低、陽光減弱
+      const rain = this.weather === 'rain';
+      scene.fog.near = rain ? 1200 : 8000; scene.fog.far = rain ? 32000 : 160000;
+      if (rain) {
+        const gray = new THREE.Color(mode === 'night' ? 0x0a0e16 : 0x6d7682);
+        skyMat.uniforms.top.value.lerp(gray, 0.75); skyMat.uniforms.bottom.value.lerp(gray, 0.6);
+        skyMat.uniforms.sunSize.value = 0; skyMat.uniforms.stars.value = 0;
+        scene.fog.color.lerp(gray, 0.7); scene.background.copy(skyMat.uniforms.bottom.value);
+        sun.intensity *= 0.35; hemi.intensity *= 0.8;
+        seaMat.uniforms.deep.value.lerp(new THREE.Color(0x15212c), 0.5); seaMat.uniforms.skyCol.value.copy(scene.fog.color);
+        seaMat.uniforms.sunInt.value *= 0.15;
+        cloudMat.uniforms.lit.value.lerp(gray, 0.6); cloudMat.uniforms.shade.value.lerp(new THREE.Color(0x3a414b), 0.7);
+        this.exposure *= 1.05;
+      }
     },
+    setWeather(w) { this.weather = w; this.setTime(this.mode); },
     update(t) { seaMat.uniforms.time.value = t; },
     // 真實地形就緒：隱藏手工陸地與山，把建築與城市燈光放到地形高度上
     useTerrain(heightAt) {

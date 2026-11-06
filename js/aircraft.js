@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RUNWAY_Y, terrainHeight, runwayAt } from './world.js?v=20261105230830';
+import { RUNWAY_Y, terrainHeight, runwayAt } from './world.js?v=20261106162641';
 
 // 單位：SI。機身座標：-Z 前、+Y 上、+X 右
 const G = 9.81;

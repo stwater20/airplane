@@ -1,7 +1,7 @@
 // 額外場景：海上船隻與航跡、落地輪胎煙、夜間進場「兔子燈」
 import * as THREE from 'three';
-import { ROUTES, toWorld } from './geo.js?v=20261105230830';
-import { runways, RUNWAY_Y } from './world.js?v=20261105230830';
+import { ROUTES, toWorld } from './geo.js?v=20261106162641';
+import { runways, RUNWAY_Y } from './world.js?v=20261106162641';
 
 function softTex() {
   const c = document.createElement('canvas'); c.width = c.height = 64;
@@ -42,6 +42,25 @@ export class Scenery {
       return { s, r, phase: Math.random() };
     });
     this.night = false;
+
+    // ── 目的地機場航廈招牌 ──
+    const SIGNS = { NRT: ['成田国際空港', 'NARITA INTERNATIONAL AIRPORT'], KIX: ['関西国際空港', 'KANSAI INTERNATIONAL AIRPORT'], OKA: ['那覇空港', 'NAHA AIRPORT'] };
+    for (const [code, [jp, en]] of Object.entries(SIGNS)) {
+      const r = runways.find((x) => x.airport === code);
+      if (!r) continue;
+      const c = document.createElement('canvas'); c.width = 1024; c.height = 256;
+      const g = c.getContext('2d');
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, 1024, 256);
+      g.fillStyle = '#1f2a44'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = 'bold 96px "Hiragino Sans", "Noto Sans JP", "PingFang TC", sans-serif'; g.fillText(jp, 512, 100);
+      g.font = 'bold 48px -apple-system, sans-serif'; g.fillStyle = '#c0392b'; g.fillText(en, 512, 200);
+      const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+      const rr = new THREE.Vector3(-r.dirZ, 0, r.dirX);
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(240, 60), new THREE.MeshBasicMaterial({ map: tex }));
+      sign.position.set(r.cx, 34, r.cz).addScaledVector(rr, 538);
+      sign.lookAt(sign.position.clone().sub(rr));
+      scene.add(sign);
+    }
   }
 
   // 船隻要等地形載入後才知道哪裡是海

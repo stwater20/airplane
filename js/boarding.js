@@ -1,10 +1,9 @@
 // 乘客登機：桃園機場遠端停機位
 // 接駁巴士 → 登機梯車 → 左前門；地面有導引線、機位編號、安全錐，引導員揮棒，右側有行李輸送帶車、行李拖車與空廚車
 import * as THREE from 'three';
-import { runways, RUNWAY_Y } from './world.js?v=20261106162641';
-import { GEAR_H } from './aircraft.js?v=20261106162641';
+import { runways, RUNWAY_Y } from './world.js?v=20261107070348';
+import { GEAR_H } from './aircraft.js?v=20261107070348';
 
-const TOTAL = 180;
 const WALKERS = 30;
 const APRON = 1.62;                         // 停機坪地面高度
 
@@ -16,15 +15,16 @@ function canvasTex(w, h, draw) {
 }
 
 export class Boarding {
-  constructor(scene) {
-    this.scene = scene;
+  // sc：機型縮放（登機梯高度、門位置都跟著變）；pax：乘客數
+  constructor(scene, sc = 1, pax = 180) {
+    this.scene = scene; this.sc = sc; this.pax = pax;
     this.group = new THREE.Group();
     this.group.visible = false;
     scene.add(this.group);
     const rw = runways.find((r) => r.airport === 'TPE' && r.id.startsWith('05R'));
     this.rw = rw;
     const F = new THREE.Vector3(rw.dirX, 0, rw.dirZ), R = new THREE.Vector3(-rw.dirZ, 0, rw.dirX), U = new THREE.Vector3(0, 1, 0);
-    const O = new THREE.Vector3(rw.cx, APRON, rw.cz).addScaledVector(F, -rw.halfLen * 0.3).addScaledVector(R, 330);
+    const O = new THREE.Vector3(rw.cx, APRON, rw.cz).addScaledVector(F, -rw.halfLen * 0.49).addScaledVector(R, 330);
     this.standPos = O.clone().setY(RUNWAY_Y + GEAR_H - 0.4);
     this.yaw = -rw.heading * Math.PI / 180;
     this.quat = new THREE.Quaternion().setFromAxisAngle(U, this.yaw);
@@ -39,9 +39,9 @@ export class Boarding {
     const lineMat = new THREE.MeshBasicMaterial({ color: 0xffd21f });
     const flat = (w, l, mat, x, z, rot = 0) => { const g = new THREE.PlaneGeometry(w, l); g.rotateX(-Math.PI / 2); const m = add(g, mat, x, 0.02, z, rot); return m; };
     flat(0.3, 70, lineMat, 0, 8);
-    flat(5, 0.5, lineMat, 0, -22);
+    flat(5, 0.5, lineMat, 0, -22 * sc);
     const standTex = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#ffd21f'; g.font = 'bold 150px -apple-system, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('A5', w / 2, h / 2); });
-    const sn = flat(6, 6, new THREE.MeshBasicMaterial({ map: standTex, transparent: true, depthWrite: false }), 0, -28);
+    const sn = flat(6, 6, new THREE.MeshBasicMaterial({ map: standTex, transparent: true, depthWrite: false }), 0, -28 * sc);
     sn.rotation.z = Math.PI;
     const redMat = new THREE.MeshBasicMaterial({ color: 0xb8343a, transparent: true, opacity: 0.7 });
     for (const x of [-24, 24]) flat(0.15, 66, redMat, x, 4);
@@ -49,16 +49,16 @@ export class Boarding {
 
     // ── 安全錐、輪檔 ──
     const coneGeo = new THREE.ConeGeometry(0.22, 0.7, 10); coneGeo.translate(0, 0.35, 0);
-    for (const [x, z] of [[-18.8, 3.4], [18.8, 3.4], [0, -21], [0, 23], [-6, -7], [6, -7]]) {
+    for (const [x, z] of [[-18.8, 3.4], [18.8, 3.4], [0, -21], [0, 23], [-6, -7], [6, -7]].map(([a, b]) => [a * sc, b * sc])) {
       add(coneGeo, orange, x, 0, z);
       const band = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.17, 0.12, 10), white); band.position.copy(W(x, 0.42, z)); this.group.add(band);
     }
-    for (const dz of [-0.9, 0.9]) add(new THREE.BoxGeometry(0.9, 0.3, 0.35), yellow, 0, 0.15, -14 + dz);
+    for (const dz of [-0.9, 0.9]) add(new THREE.BoxGeometry(0.9, 0.3, 0.35), yellow, 0, 0.15, -14 * sc + dz);
 
     // ── 登機梯車（左前門）──
-    const doorX = -2.05, doorZ = -13.6, sill = 3.1;
+    const doorX = -2.05 * sc, doorZ = -13.6 * sc, sill = 3.1 * sc;
     this.door = W(doorX, sill + 0.9, doorZ);
-    const topX = -3.9, botX = -11.4, steps = 14;
+    const topX = doorX - 1.85, botX = topX - sill * 2.42, steps = Math.max(6, Math.round(sill / 0.22));
     add(new THREE.BoxGeometry(1.6, 0.12, 2.2), grey, (doorX + topX) / 2 - 0.3, sill, doorZ);            // 頂部平台
     for (let i = 0; i < steps; i++) {                                                                // 一階一階的樓梯
       const f = (i + 0.5) / steps;
@@ -74,11 +74,11 @@ export class Boarding {
     }
     add(new THREE.BoxGeometry(2.2, 0.08, 2.6), white, topX + 0.2, sill + 2.3, doorZ);                    // 頂棚
     for (const dz of [-1.1, 1.1]) add(new THREE.BoxGeometry(0.08, 2.3, 0.08), white, topX + 0.9, sill + 1.15, doorZ + dz);
-    add(new THREE.BoxGeometry(8.5, 0.7, 2.4), yellow, -8.6, 0.75, doorZ);                                // 車架
-    add(new THREE.BoxGeometry(2.2, 1.9, 2.4), white, -13.7, 1.2, doorZ);                                 // 車頭
-    add(new THREE.BoxGeometry(1.3, 0.8, 2.42), glass, -14.2, 1.7, doorZ);
+    add(new THREE.BoxGeometry(Math.abs(botX - topX) + 1, 0.7, 2.4), yellow, (botX + topX) / 2, 0.75, doorZ);          // 車架
+    add(new THREE.BoxGeometry(2.2, 1.9, 2.4), white, botX - 2.3, 1.2, doorZ);                                     // 車頭
+    add(new THREE.BoxGeometry(1.3, 0.8, 2.42), glass, botX - 2.8, 1.7, doorZ);
     const wheel = new THREE.CylinderGeometry(0.42, 0.42, 0.3, 14); wheel.rotateX(Math.PI / 2);
-    for (const x of [-6, -12.6]) for (const dz of [-1.2, 1.2]) add(wheel, dark, x, 0.42, doorZ + dz, Math.PI / 2);
+    for (const x of [topX - 2, botX - 1.2]) for (const dz of [-1.2, 1.2]) add(wheel, dark, x, 0.42, doorZ + dz, Math.PI / 2);
 
     // ── 接駁巴士（側面有「資安航空」字樣）──
     const busTex = canvasTex(1024, 256, (g, w, h) => {
@@ -92,33 +92,34 @@ export class Boarding {
     });
     const busMat = new THREE.MeshLambertMaterial({ map: busTex });
     const busEnd = lam(0x2563c0);
-    const bx = -30, bz = -7;
+    const bx = botX - 18, bz = doorZ + 6.5;
     const bus = add(new THREE.BoxGeometry(2.6, 3.0, 12.5), [busMat, busMat, lam(0xdfe3e8), dark, busEnd, busEnd], bx, 1.85, bz);
     void bus;
     for (const z of [-4, 3.8]) for (const dx of [-1.3, 1.3]) add(wheel, dark, bx + dx, 0.45, bz + z, Math.PI / 2);
     const busDoor = W(bx + 1.6, 0, bz - 2.2);
 
     // ── 右側：行李輸送帶車、行李拖車隊、空廚車 ──
-    const holdX = 2.1, holdZ = 8.5;
+    const holdX = 2.1 * sc, holdZ = 8.5 * sc;
     const belt = add(new THREE.BoxGeometry(7.5, 0.25, 1.1), dark, holdX + 3.4, 1.3, holdZ);
-    belt.rotateZ(Math.atan2(2.3, 7.0));
+    belt.rotateZ(Math.atan2(2.3 * sc, 7.0));
     add(new THREE.BoxGeometry(6, 0.8, 1.8), yellow, holdX + 4.2, 0.55, holdZ);
     this.beltBags = new THREE.InstancedMesh(new THREE.BoxGeometry(0.55, 0.35, 0.8), lam(0xffffff), 7);
     const bagC = [0x2c3e50, 0xc0392b, 0x8e44ad, 0x16a085, 0x7f8c8d, 0xd35400, 0x34495e], cc = new THREE.Color();
     for (let i = 0; i < 7; i++) this.beltBags.setColorAt(i, cc.setHex(bagC[i]));
     this.beltBags.frustumCulled = false;
     this.group.add(this.beltBags);
-    this.beltA = W(holdX + 7.2, 0.4, holdZ); this.beltB = W(holdX + 0.4, 2.7, holdZ);
-    add(new THREE.BoxGeometry(1.6, 1.2, 2.4), yellow, 14, 0.75, 4);                                       // 拖車
+    this.beltA = W(holdX + 7.2, 0.4, holdZ); this.beltB = W(holdX + 0.4, 2.7 * sc, holdZ);
+    add(new THREE.BoxGeometry(1.6, 1.2, 2.4), yellow, 14 * sc, 0.75, 4 * sc);                                       // 拖車
     for (let k = 0; k < 3; k++) {
-      const z = 8 + k * 4.2;
-      add(new THREE.BoxGeometry(1.8, 0.25, 3.4), grey, 14, 0.55, z);
-      for (let j = 0; j < 5; j++) add(new THREE.BoxGeometry(0.5, 0.35 + (j % 2) * 0.15, 0.75), lam(bagC[(k * 5 + j) % 7]), 13.5 + (j % 2) * 0.9, 0.85, z - 1.2 + Math.floor(j / 2) * 0.9);
+      const z = 8 * sc + k * 4.2;
+      add(new THREE.BoxGeometry(1.8, 0.25, 3.4), grey, 14 * sc, 0.55, z);
+      for (let j = 0; j < 5; j++) add(new THREE.BoxGeometry(0.5, 0.35 + (j % 2) * 0.15, 0.75), lam(bagC[(k * 5 + j) % 7]), 14 * sc - 0.5 + (j % 2) * 0.9, 0.85, z - 1.2 + Math.floor(j / 2) * 0.9);
     }
-    add(new THREE.BoxGeometry(2.6, 2.6, 5), white, 6.2, 3.6, -12.2);                                      // 空廚車車廂（升起）
-    add(new THREE.BoxGeometry(2.4, 2.2, 0.3), grey, 6.2, 1.2, -12.2);                                     // 剪式升降
-    add(new THREE.BoxGeometry(2.4, 1.8, 2), white, 6.2, 1.1, -16.2);
-    add(new THREE.BoxGeometry(2.42, 0.7, 1.2), glass, 6.2, 1.5, -16.9);
+    const cx = 2.1 * sc + 4.1, cz = -12.2 * sc;
+    add(new THREE.BoxGeometry(2.6, 2.6, 5), white, cx, 3.6 * sc, cz);                                     // 空廚車車廂（升起）
+    add(new THREE.BoxGeometry(2.4, Math.max(0.5, 3.6 * sc - 2.4), 0.3), grey, cx, (3.6 * sc - 1.3) / 2, cz);  // 剪式升降
+    add(new THREE.BoxGeometry(2.4, 1.8, 2), white, cx, 1.1, cz - 4);
+    add(new THREE.BoxGeometry(2.42, 0.7, 1.2), glass, cx, 1.5, cz - 4.7);
 
     // ── 照明燈塔 ──
     const glowTex = canvasTex(64, 64, (g) => { const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); });
@@ -147,7 +148,7 @@ export class Boarding {
         p.add(arm); arms.push({ arm, side });
       }
       p.scale.setScalar(1.15);
-      p.position.copy(W(x, 0, -24));
+      p.position.copy(W(x, 0, -24 * sc));
       p.rotation.y = this.yaw + Math.PI;
       this.group.add(p);
       this.marshal.push(arms);
@@ -237,5 +238,5 @@ export class Boarding {
     for (const l of this.lamps) l.visible = night;
   }
 
-  get total() { return TOTAL; }
+  get total() { return this.pax; }
 }

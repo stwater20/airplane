@@ -38,6 +38,55 @@ export class SpeedFX {
     });
   }
 
+  // 翼尖渦流：兩條從翼尖拉出的細白尾跡，轉彎、拉升或下雨時更濃
+  initTips(scene) {
+    const N = 48;
+    this.tips = [-1, 1].map((side) => {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 6), 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(N * 8), 4));
+      const idx = [];
+      for (let i = 0; i < N - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+      geo.setIndex(idx);
+      const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: true }));
+      mesh.frustumCulled = false;
+      scene.add(mesh);
+      return { side, mesh, geo, hist: [], acc: 0, N };
+    });
+  }
+
+  updateTips(ac, camera, simDt, timeScale, wet) {
+    if (!this.tips) return;
+    const speed = ac.vel.length();
+    const on = speed > 55 && timeScale <= 4 && !ac.onGround;
+    const s = ac.mesh.scale.x;
+    const strength = Math.min(1, 0.22 + Math.max(0, ac.gLoad - 1) * 1.4 + (wet ? 0.3 : 0));
+    const camDir = new THREE.Vector3();
+    for (const t of this.tips) {
+      const tip = new THREE.Vector3(t.side * 18.4 * s, 0.3 * s, 3.8 * s).applyQuaternion(ac.quat).add(ac.pos);
+      t.acc += simDt;
+      if (on && t.acc > 0.04) { t.acc = 0; t.hist.unshift(tip.clone()); if (t.hist.length > t.N) t.hist.pop(); }
+      if (!on && t.hist.length && t.acc > 0.04) { t.acc = 0; t.hist.pop(); }
+      const n = t.hist.length;
+      t.mesh.visible = n > 2;
+      if (!t.mesh.visible) continue;
+      const pos = t.geo.attributes.position.array, col = t.geo.attributes.color.array;
+      for (let i = 0; i < t.N; i++) {
+        const p = i === 0 ? tip : t.hist[Math.min(i, n - 1)];
+        const q = t.hist[Math.min(i + 1, n - 1)] || p;
+        const seg = q.clone().sub(p);
+        if (seg.lengthSq() < 1e-6) seg.set(0, 0, 1);
+        camDir.copy(p).sub(camera.position).normalize();
+        const side = seg.cross(camDir).normalize();
+        const f = i / t.N, w = (0.12 + f * 0.9) * s;
+        const a = i >= n ? 0 : Math.min(1, i / 3) * (1 - f) * strength * 0.85;
+        pos.set([p.x + side.x * w, p.y + side.y * w, p.z + side.z * w, p.x - side.x * w, p.y - side.y * w, p.z - side.z * w], i * 6);
+        col.set([1, 1, 1, a, 1, 1, 1, a], i * 8);
+      }
+      t.geo.attributes.position.needsUpdate = true; t.geo.attributes.color.needsUpdate = true;
+    }
+  }
+
   // 雨絲：固定在空氣中往下落，飛機前進時迎面打來
   initRain(scene) {
     const N = 900;
@@ -75,7 +124,7 @@ export class SpeedFX {
 
     // ── 氣流線 ──
     const show = speed > 35 && timeScale <= 4;
-    const target = show ? Math.min(0.42, (speed - 35) / 200) * (this.dim ?? 1) : 0;
+    const target = show ? Math.min(0.13, (speed - 35) / 600) * (this.dim ?? 1) : 0;   // 平時很淡，加速環時才明顯
     this.streakMat.opacity += (target - this.streakMat.opacity) * Math.min(1, dtReal * 3);
     this.streaks.visible = this.streakMat.opacity > 0.01;
     if (this.streaks.visible) {

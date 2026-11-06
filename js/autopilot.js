@@ -1,6 +1,6 @@
-import { ROUTE, ROUTES, toWorld } from './geo.js?v=20261106162641';
-import { runways, RUNWAY_Y, terrainHeight } from './world.js?v=20261106162641';
-import { GEAR_H } from './aircraft.js?v=20261106162641';
+import { ROUTE, ROUTES, toWorld } from './geo.js?v=20261107070348';
+import { runways, RUNWAY_Y, terrainHeight } from './world.js?v=20261107070348';
+import { GEAR_H } from './aircraft.js?v=20261107070348';
 
 const D2R = Math.PI / 180, R2D = 180 / Math.PI;
 const KT = 0.514444, FT = 0.3048;
@@ -113,7 +113,7 @@ export class Autopilot {
       if (Math.abs(ils.xtk) > maxOff && ax * ils.xtk > 0) ax = 0;
       else if (Math.abs(ils.xtk) > maxOff * 0.6 && ax * ils.xtk > 0) ax *= 0.4;
     }
-    if (Math.abs(ax) > 0.03) bankT = bankT * (1 - Math.abs(ax)) + ax * 35 * D2R;
+    if (Math.abs(ax) > 0.03) bankT = bankT * (1 - Math.abs(ax)) + ax * (this.bankMax || 40) * D2R;
     ac.input.roll = clamp((bankT - att.bank) * (Math.abs(ax) > 0.03 ? 2.2 : 1.6) - ac.omega.z * 0.0, -1, 1);
     ac.input.yaw = 0;
 

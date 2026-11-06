@@ -1,19 +1,19 @@
 import * as THREE from 'three';
-import { buildWorld, runways, terrainHeight } from './world.js?v=20261106162641';
-import { Aircraft, GEAR_H, FLAP_NAMES } from './aircraft.js?v=20261106162641';
-import { Autopilot } from './autopilot.js?v=20261106162641';
-import { HUD } from './hud.js?v=20261106162641';
-import { Casual } from './casual.js?v=20261106162641';
-import { GameAudio } from './audio.js?v=20261106162641';
-import { SpeedFX } from './effects.js?v=20261106162641';
-import { Taoyuan } from './taoyuan.js?v=20261106162641';
-import { DESTS } from './geo.js?v=20261106162641';
-import { Boarding } from './boarding.js?v=20261106162641';
-import { progress, LIVERIES, GACHA_COST, ACHIEVEMENTS, todaySeed, todayKey } from './progress.js?v=20261106162641';
-import { Terrain } from './terrain.js?v=20261106162641';
-import { Cockpit } from './cockpit.js?v=20261106162641';
-import { Scenery } from './scenery.js?v=20261106162641';
-import { Traffic } from './traffic.js?v=20261106162641';
+import { buildWorld, runways, terrainHeight } from './world.js?v=20261107070348';
+import { Aircraft, GEAR_H, FLAP_NAMES, PLANE_TYPES, buildAircraftModel } from './aircraft.js?v=20261107070348';
+import { Autopilot } from './autopilot.js?v=20261107070348';
+import { HUD } from './hud.js?v=20261107070348';
+import { Casual } from './casual.js?v=20261107070348';
+import { GameAudio } from './audio.js?v=20261107070348';
+import { SpeedFX } from './effects.js?v=20261107070348';
+import { Taoyuan } from './taoyuan.js?v=20261107070348';
+import { DESTS } from './geo.js?v=20261107070348';
+import { Boarding } from './boarding.js?v=20261107070348';
+import { progress, LIVERIES, GACHA_COST, ACHIEVEMENTS, todaySeed, todayKey } from './progress.js?v=20261107070348';
+import { Terrain } from './terrain.js?v=20261107070348';
+import { Cockpit } from './cockpit.js?v=20261107070348';
+import { Scenery } from './scenery.js?v=20261107070348';
+import { Traffic } from './traffic.js?v=20261107070348';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 // 自動畫質：依實際每秒畫面數調整解析度（手機上避免卡頓）
@@ -51,9 +51,10 @@ const terrain = new Terrain(scene);
 terrain.load().then(() => { env.useTerrain((x, z) => terrain.heightAt(x, z)); scenery.spawnShips((x, z) => terrain.heightAt(x, z)); }).catch((e) => console.warn('真實地形載入失敗，使用手工地形', e));
 const traffic = new Traffic(scene);
 const taoyuan = new Taoyuan(scene);
-const boarding = new Boarding(scene);
+let boarding = new Boarding(scene);
 const fx = new SpeedFX(scene);
 fx.initRain(scene);
+fx.initTips(scene);
 scene.add(camera);
 const cockpit = new Cockpit(camera);
 const ac = new Aircraft();
@@ -66,6 +67,7 @@ ac.placeOnRunway(startRunway, -1);
 ap.hdg = startRunway.heading;
 
 boarding.start(ac);   // 首頁背景：停機坪上正在登機的飛機
+let camScale = 1;            // 依機型大小調整追蹤距離
 const sim = { ac, ap, camera, taoyuan, env, terrain, boarding, quality, timeScale: 1, paused: true, camMode: 0, started: false, casual: true, voice: true, tilt: false };
 sim.audio = new GameAudio();
 sim.runways = runways;
@@ -150,7 +152,7 @@ view.addEventListener('pointerdown', (e) => {
   if (sim.casual && sim.ctrl === 'buttons') return;   // 按鈕模式不使用拖曳
   if (sim.casual) {
     Object.assign(drag, { active: true, id: e.pointerId, ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY });
-    view.setPointerCapture(e.pointerId);
+    try { view.setPointerCapture(e.pointerId); } catch { /* 合成事件或舊瀏覽器 */ }
     return;
   }
   orbit.drag = true; orbit.lx = e.clientX; orbit.ly = e.clientY;
@@ -317,8 +319,9 @@ function startGame(easy, daily = false) {
   document.body.classList.toggle('pro', !easy);
   sim.started = true;
   sim.paused = false;
-  ac.rollRateMax = easy ? 0.5 : 0.26;
+  ac.rollRateMax = easy ? (PLANE_TYPES[ac.type] || PLANE_TYPES.narrow).roll : 0.26;
   setDest(progress.data.dest || 'NRT');
+
   document.body.classList.add('playing');
   document.getElementById('menu').classList.add('hidden');
   // 不播登機時，直接把飛機放到跑道
@@ -340,7 +343,7 @@ document.getElementById('dailyBtn').addEventListener('click', () => startGame(tr
 document.querySelectorAll('[data-jump]').forEach((b) => b.addEventListener('click', () => {
   document.getElementById('jumpSheet').classList.add('hidden');
   sim.jumped = true;
-  casual.jumpTo(b.dataset.jump);
+  sim.fade(() => casual.jumpTo(b.dataset.jump));
   sim.paused = false; document.querySelector('[data-c="pause"]').classList.remove('paused');
 }));
 {
@@ -350,7 +353,7 @@ document.querySelectorAll('[data-jump]').forEach((b) => b.addEventListener('clic
 document.querySelectorAll('[data-c]').forEach((b) => b.addEventListener('click', () => {
   const c = b.dataset.c;
   if (c === 'cam') cycleCam();
-  if (c === 'skip') { if (casual.stage === 'cruise') casual.toApproach(); else if (casual.stage === 'briefing') casual.skipBriefing(); }
+  if (c === 'skip') { if (casual.stage === 'cruise') casual.fadeTo(() => casual.toApproach()); else casual.skipBriefing(); }
   if (c === 'music') { sim.audio.musicOn = !sim.audio.musicOn; b.classList.toggle('off', !sim.audio.musicOn); }
   if (c === 'tilt') toggleTilt(b);
   if (c === 'photo') takePhoto();
@@ -453,6 +456,31 @@ function setDest(code) {
 }
 document.querySelectorAll('[data-dest]').forEach((b) => b.addEventListener('click', () => setDest(b.dataset.dest)));
 setDest(progress.data.dest || 'NRT');
+
+// 機型選擇：換模型、手感，並依機型大小重建登機場景
+function setPlane(type) {
+  const T = PLANE_TYPES[type] ? type : 'narrow';
+  const P = PLANE_TYPES[T];
+  progress.data.plane = T; progress.save();
+  if (ac.type !== T) {
+    scene.remove(ac.mesh);
+    ac.mesh = buildAircraftModel(progress.livery().color, T);
+    scene.add(ac.mesh);
+    ac.type = T;
+    applyLivery();
+    scene.remove(boarding.group);
+    boarding = new Boarding(scene, P.scale, P.pax);
+    sim.boarding = boarding;
+    if (!sim.started) boarding.start(ac);
+  }
+  ap.bankMax = P.bank;
+  casual.comfortK = P.comfort;
+  camScale = 0.75 + P.scale * 0.25;
+  document.querySelectorAll('[data-plane]').forEach((x) => x.classList.toggle('on', x.dataset.plane === T));
+}
+document.querySelectorAll('[data-plane]').forEach((b) => b.addEventListener('click', () => setPlane(b.dataset.plane)));
+ac.type = 'narrow';
+setPlane(progress.data.plane || 'narrow');
 
 // 操控方式：拖曳／按鈕
 function setCtrl(mode) {
@@ -560,6 +588,7 @@ const camPos = new THREE.Vector3(), camTarget = new THREE.Vector3();
 const smoothCam = new THREE.Vector3();
 let camInit = false;
 let camRoll = 0;
+const camFwd = new THREE.Vector3(0, 0, -1);
 
 function readControls(dt) {
   const k = (...ks) => ks.some((x) => keys.has(x) || tapped.has(x));
@@ -639,7 +668,7 @@ function updateCamera(dt) {
     camera.up.set(0, 1, 0);
     camera.lookAt(c.x, ac.pos.y - 1, c.z);
     camInit = false;
-  } else if (sim.casual && (casual.stage === 'boarding' || casual.stage === 'taxi')) {
+  } else if (sim.casual && casual.stage === 'boarding') {
     // 登機：從停機坪側面看著乘客走上登機梯
     sim.boardCamT = (sim.boardCamT || 0) + dt;
     const b = boarding;
@@ -668,7 +697,10 @@ function updateCamera(dt) {
   } else if (mode === 0) {
     // 追蹤：位於飛機後上方，平滑跟隨航向
     const hdgFwd = new THREE.Vector3(fwd.x, 0, fwd.z).normalize();
-    const desired = ac.pos.clone().addScaledVector(hdgFwd, -orbit.dist).add(new THREE.Vector3(0, orbit.dist * 0.18 + 3, 0));
+    // 鏡頭方向慢半拍跟上：轉彎時看得到飛機往旁邊偏、機身傾斜，而不是整個世界在轉
+    if (!camInit || sim.resetCam) camFwd.copy(hdgFwd);
+    camFwd.lerp(hdgFwd, Math.min(1, dt * (sim.casual ? 0.9 : 2.5) * Math.max(1, sim.timeScale))).normalize();
+    const desired = ac.pos.clone().addScaledVector(camFwd, -orbit.dist * camScale).add(new THREE.Vector3(0, (orbit.dist * 0.18 + 3) * camScale, 0));
     if (!camInit || sim.resetCam || smoothCam.distanceTo(desired) > 800) { smoothCam.copy(desired); camInit = true; sim.resetCam = false; }
     const ky = sim.casual && sim.timeScale <= 2 ? 1.6 : 4;          // 高度方向跟得慢一點，爬升／下降時飛機會在畫面上移動
     const kk = Math.min(1, dt * 4 * Math.max(1, sim.timeScale));
@@ -678,12 +710,13 @@ function updateCamera(dt) {
     camera.position.copy(smoothCam);
     camera.up.set(0, 1, 0);
     // 視線略往下，讓飛機位於畫面中上方、不被下方儀表遮住
-    camera.lookAt(camTarget.copy(ac.pos).addScaledVector(hdgFwd, orbit.dist * 0.85).add(new THREE.Vector3(0, -orbit.dist * (!sim.casual ? 0.36 : camera.aspect < 1 ? -0.05 : 0.12), 0)));
-    // 鏡頭跟著坡度微微傾斜，轉彎更有感
-    if (sim.casual) { camRoll += (-ac.attitude().bank * 0.2 - camRoll) * Math.min(1, dt * 3); camera.rotateZ(camRoll); }
+    camera.lookAt(camTarget.copy(ac.pos).addScaledVector(camFwd, orbit.dist * 0.85 * camScale).add(new THREE.Vector3(0, -orbit.dist * camScale * (!sim.casual ? 0.36 : camera.aspect < 1 ? -0.05 : 0.12), 0)));
+    // 鏡頭只輕微跟著坡度傾斜，保留飛機本身的傾斜感
+    if (sim.casual) { camRoll += (-ac.attitude().bank * 0.08 - camRoll) * Math.min(1, dt * 2); camera.rotateZ(camRoll); }
     // 直式手機：視線抬高，飛機在畫面下方、前方空間較多
   } else if (mode === 1) {
-    camera.position.copy(ac.pos.clone().add(new THREE.Vector3(0, 1.6, -17.5).applyQuaternion(ac.quat)));
+    const ms = ac.mesh.scale.x;
+    camera.position.copy(ac.pos.clone().add(new THREE.Vector3(0, 1.6 * ms + GEAR_H * (ms - 1), -17.5 * ms).applyQuaternion(ac.quat)));
     camera.quaternion.copy(ac.quat).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -0.08));
   } else if (mode === 2) {
     const off = new THREE.Vector3(
@@ -764,6 +797,7 @@ function frame() {
   updateCamera(dt);
   cockpit.update(dt, ac, ap, camera, sim.started && sim.camMode === 1);
   fx.updateRain(ac, camera, dt, sim.started && !sim.paused ? sim.timeScale : 0, env.weather === 'rain');
+  fx.updateTips(ac, camera, sim.started && !sim.paused ? dt * sim.timeScale : 0, sim.timeScale, env.weather === 'rain');
   fx.dim = (env.mode === 'night' ? 0.35 : 1) * (sim.casual && casual.boostT > 0 ? 2.2 : 1);
   fx.update(ac, camera, dt, sim.started && !sim.paused ? dt * sim.timeScale : 0, sim.timeScale);
   renderer.render(scene, camera);

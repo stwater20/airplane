@@ -1,8 +1,8 @@
 // 輕鬆模式：自動起飛／巡航／降落，玩家只需拖曳讓飛機穿過金色圓環
 import * as THREE from 'three';
-import { RUNWAY_Y, terrainHeight } from './world.js?v=20261106162641';
-import { DESTS } from './geo.js?v=20261106162641';
-import { GEAR_H } from './aircraft.js?v=20261106162641';
+import { RUNWAY_Y, terrainHeight } from './world.js?v=20261107070348';
+import { DESTS } from './geo.js?v=20261107070348';
+import { GEAR_H } from './aircraft.js?v=20261107070348';
 
 const D2R = Math.PI / 180, KT = 0.514444, FT = 0.3048;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -15,6 +15,8 @@ export function seeded(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2
 
 const STAGE_TEXT = {
   boarding: '🧳 乘客登機中',
+  taxi: '🛞 滑行到跑道 05R',
+  transit: '…',
   briefing: '👩‍✈️ 安全示範中…',
   takeoff: '起飛中…準備！',
   climb: '穿過金色圓環！',
@@ -95,7 +97,7 @@ export class Casual {
     this.ring = null;
     this.stage = this.short ? 'briefing' : 'boarding';   // 第二次起不再播登機
     this.boardT = 0;
-    this.sim.ac.rollRateMax = 0.5;
+    this.sim.ac.rollRateMax = { narrow: 0.5, wide: 0.36, biz: 0.78 }[this.sim.ac.type] || 0.5;
     this.brief = this.short ? [BRIEFING[0], BRIEFING[1], BRIEFING[BRIEFING.length - 1]] : BRIEFING.slice();
     this.briefBusy = false;
     this.belt = true; this.subZh = '';
@@ -146,15 +148,47 @@ export class Casual {
   // 登機完成：淡出、滑行到跑道（直接切換），開始安全示範
   endBoarding() {
     if (this.stage !== 'boarding') return;
-    this.stage = 'taxi';
-    const go = () => {
-      this.sim.boarding?.stop();
-      const rw = this.sim.boarding?.rw || this.sim.runways.find((r) => r.id.startsWith('05R'));
-      this.sim.ac.placeOnRunway(rw, -1);
-      this.sim.resetCam = true; this.sim.briefT = 0;
-      this.setStage('briefing', '登機完成，滑行到跑道 05R');
+    const rw = this.sim.boarding?.rw || this.sim.runways.find((r) => r.id.startsWith('05R'));
+    const ac = this.ac;
+    // 滑行路線：停機位 → 斜向滑行道 → 對正跑道 05R 起飛點
+    const F = new THREE.Vector3(rw.dirX, 0, rw.dirZ), Rt = new THREE.Vector3(-rw.dirZ, 0, rw.dirX);
+    const at = (s, lat) => new THREE.Vector3(rw.cx, 0, rw.cz).addScaledVector(F, s * rw.halfLen).addScaledVector(Rt, lat);
+    this.taxi = { pts: [ac.pos.clone().setY(0), at(-0.475, 330), at(-0.468, 230), at(-0.461, 120), at(-0.455, 40), at(-0.451, 6), at(-0.45, 0)], d: 0 };
+    this.taxi.len = this.taxi.pts.slice(1).reduce((a, p, i) => a + p.distanceTo(this.taxi.pts[i]), 0);
+    this.sim.boarding?.stop?.();
+    this.setStage('taxi', '登機完成，滑行到跑道 05R');
+    this.say('taxi', `${CS}, Taipei Ground, taxi to holding point runway zero five right via taxiway November.`, 'tower', '資安航空 123，桃園地面，經 N 滑行道滑行至 05R 跑道等待點。');
+    this.say('taxirb', `Taxi to holding point runway zero five right via November, ${CS}.`, 'pilot');
+  }
+
+  // 滑行（沿折線前進，機頭看著前方）
+  stepTaxi(dt) {
+    const T = this.taxi, ac = this.ac;
+    this.sim.timeScale = 3;
+    T.d += 13 * dt;
+    if (T.d >= T.len) { this.finishTaxi(); return; }
+    const pointAt = (d) => {
+      let k = 0, rem = Math.min(d, T.len - 0.01);
+      while (k < T.pts.length - 2 && rem > T.pts[k].distanceTo(T.pts[k + 1])) { rem -= T.pts[k].distanceTo(T.pts[k + 1]); k++; }
+      const a = T.pts[k], b = T.pts[k + 1];
+      return a.clone().lerp(b, rem / a.distanceTo(b));
     };
-    if (this.sim.fade) this.sim.fade(go); else go();
+    const p = pointAt(T.d), ahead = pointAt(T.d + 30);
+    const dir = ahead.clone().sub(p).setY(0).normalize();
+    const yaw = Math.atan2(dir.x, -dir.z);
+    ac.pos.set(p.x, RUNWAY_Y + GEAR_H, p.z);
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -yaw);
+    ac.quat.slerp(q, Math.min(1, dt * 3));
+    ac.vel.copy(dir).multiplyScalar(13);
+    ac.onGround = true; ac.throttle = 0.12; ac.brakes = false;
+  }
+
+  finishTaxi() {
+    const rw = this.sim.boarding?.rw || this.sim.runways.find((r) => r.id.startsWith('05R'));
+    this.sim.ac.placeOnRunway(rw, -1);
+    this.sim.timeScale = 1; this.sim.briefT = 0;
+    this.taxi = null;
+    this.setStage('briefing', '對正跑道 05R，空服員安全示範');
   }
 
   // 跳過安全示範
@@ -163,6 +197,7 @@ export class Casual {
       if (window.speechSynthesis) speechSynthesis.cancel();
       this.endBoarding(); return;
     }
+    if (this.stage === 'taxi') { if (window.speechSynthesis) speechSynthesis.cancel(); this.finishTaxi(); return; }
     if (this.stage !== 'briefing') return;
     if (window.speechSynthesis) speechSynthesis.cancel();
     this.brief = []; this.briefBusy = false;
@@ -218,6 +253,9 @@ export class Casual {
       return;
     }
 
+    if (this.stage === 'taxi') { if (this.taxi) this.stepTaxi(dt); return; }
+    if (this.stage === 'transit') return;
+
     if (this.stage === 'briefing') {
       ac.brakes = true; ac.throttle = 0;
       this.sim.timeScale = 1;
@@ -262,7 +300,9 @@ export class Casual {
       ap.assistGain = clamp((agl - 20) / 50, 0, 1);
       // 地形保護：前方 20 秒內的山比飛機低不到 400m 時，忽略玩家輸入並拉高
       const ahead = ac.pos.clone().addScaledVector(ac.vel, 20);
-      if (terrainHeight(ahead.x, ahead.z) > ac.pos.y - 400) { ap.assistGain = 0; ap.alt = Math.max(ap.alt, Math.ceil((terrainHeight(ahead.x, ahead.z) + 800) / FT / 1000) * 1000); }
+      const th = terrainHeight(ahead.x, ahead.z);
+      // 只有前方真的有山（高於 80m）而且飛機離山頂不到 350m 時才介入；平地、海面不影響操控
+      if (th > 80 && th > ac.pos.y - 350) { ap.assistGain = 0; ap.alt = Math.max(ap.alt, Math.ceil((th + 800) / FT / 1000) * 1000); }
       if (ias > 185 && ac.flaps > 1) ac.flaps = 1;
       if (ias > 210) ac.flaps = 0;
       this.rings();
@@ -281,7 +321,7 @@ export class Casual {
     } else if (this.stage === 'cruise') {
       ap.assistGain = 1;
       this.cruiseT = (this.cruiseT || 0) + dt / Math.max(1, this.sim.timeScale);
-      if (this.cruiseT > 28) { this.cruiseT = 0; this.toApproach(); return; }   // 巡航自動快轉，避免一局太久
+      if (this.cruiseT > 28) { this.cruiseT = 0; this.fadeTo(() => this.toApproach()); return; }   // 巡航自動快轉，避免一局太久
       const dest = ap.route[ap.route.length - 1];
       // 沿途觀光廣播（以通過的航路點判斷）
       if (ap.wp >= 3) this.say('meal', 'Ladies and gentlemen, we will now be serving dinner. Today we have chicken with rice, or beef noodles. Please let us know if you need anything.', 'cabin',
@@ -303,7 +343,7 @@ export class Casual {
         '各位旅客，機上娛樂推薦「資安航空扭蛋」gacha-sho.sectools.tw，降落後歡迎去轉一顆！感謝您搭乘資安航空。');
       if (ap.wp >= 8) if (ap.dest === 'NRT') this.say('kii', 'We are now passing the Kii Peninsula. The city of Osaka is off to our left. About thirty minutes to landing.', 'captain',
         '我們正飛越紀伊半島，大阪在左側，大約三十分鐘後降落。');
-      if (Math.hypot(dest.x - ac.pos.x, dest.z - ac.pos.z) < 70 * 1852) this.toApproach();
+      if (Math.hypot(dest.x - ac.pos.x, dest.z - ac.pos.z) < 70 * 1852) this.fadeTo(() => this.toApproach());
     } else if (this.stage === 'approach') {
       ap.assistGain = clamp((agl - 120) / 180, 0, 1);   // 120m 以下交給自動駕駛對正跑道
       this.sim.timeScale = agl > 120 ? 1.6 : 1;   // 進場稍微加快，短五邊恢復正常速度
@@ -323,6 +363,13 @@ export class Casual {
       this.rings();
       this.updateCoins(dt);
     }
+  }
+
+  // 淡出 → 執行 → 淡入；淡出期間暫停邏輯，避免重複觸發
+  fadeTo(fn) {
+    if (this.stage === 'transit') return;
+    this.stage = 'transit';
+    if (this.sim.fade) this.sim.fade(fn); else fn();
   }
 
   // 跳到指定階段：takeoff / climb / cruise / approach
@@ -414,7 +461,7 @@ export class Casual {
     const ac = this.ac;
     if (this.stage === 'cruise') dt = Math.min(dt, 1 / 60);   // 快轉時不要放大扣分
     const g = Math.abs(ac.gLoad - 1), bank = Math.abs(att.bank), rr = Math.abs(ac.omega.z);
-    let hurt = Math.max(0, g - 0.3) * 30 + Math.max(0, bank - 0.55) * 25 + Math.max(0, rr - 0.3) * 18;
+    let hurt = (Math.max(0, g - 0.3) * 30 + Math.max(0, bank - 0.55) * 25 + Math.max(0, rr - 0.3) * 18) * (this.comfortK || 1);
     // 亂流：飛機顛簸，玩家若在亂流中大動作操控會更不舒服
     if (this.turbT > 0) {
       this.turbT -= dt;
@@ -575,7 +622,7 @@ export class Casual {
     setText('hKmh', String(kmh));
     setText('hAlt', `高度 ${alt.toLocaleString()} 公尺${this.sim.timeScale > 1 ? ` · ${this.sim.timeScale}×` : ''}`);
     const stageLabel = this.boostT > 0 ? `⚡ 加速中 雙倍分數 ${Math.ceil(this.boostT)}`
-      : this.stage === 'boarding' ? `🧳 登機中 ${this.boarded || 0} / 180` : (STAGE_TEXT[this.stage] || '');
+      : this.stage === 'boarding' ? `🧳 登機中 ${this.boarded || 0} / ${this.sim.boarding?.total || 180}` : (STAGE_TEXT[this.stage] || '');
     if (setText('hStage', stageLabel)) {
       const el = $('hStage'); el.classList.add('pop'); setTimeout(() => el.classList.remove('pop'), 350);
     }

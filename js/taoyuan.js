@@ -1,7 +1,8 @@
 // 桃園機場特色：水門禮、地勤揮手道別、機場招牌、塔台、首航布條、觀音海岸風機、機場捷運
 import * as THREE from 'three';
-import { runways, RUNWAY_Y } from './world.js?v=20261106162641';
-import { toWorld } from './geo.js?v=20261106162641';
+import { runways, RUNWAY_Y } from './world.js?v=20261107070348';
+import { buildAircraftModel, GEAR_H } from './aircraft.js?v=20261107070348';
+import { toWorld } from './geo.js?v=20261107070348';
 
 const G = 9.81;
 
@@ -161,10 +162,76 @@ export class Taoyuan {
     this.train.rotation.y = mYaw;
     scene.add(this.train);
     Object.assign(this, { m0, mdir, mlen: len, tpos: 0, tdir: 1 });
+
+    // ── 起飛沿途的機場細節 ──
+    const lam = (c) => new THREE.MeshLambertMaterial({ color: c });
+    const put = (geo, mat, s, lat, y, rotY = 0) => { const m = new THREE.Mesh(geo, mat); m.position.copy(at(s, lat, y)); m.rotation.y = yaw + rotY; scene.add(m); return m; };
+    // 風向袋（紅白相間，隨風擺動）
+    put(new THREE.CylinderGeometry(0.15, 0.2, 9, 6), lam(0xdddddd), s0 + 260, -(rw.halfWid + 55), RUNWAY_Y + 4.5);
+    this.sock = new THREE.Group();
+    for (let i = 0; i < 5; i++) {
+      const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.75 - i * 0.1, 0.65 - i * 0.1, 1.2, 10, 1, true), lam(i % 2 ? 0xffffff : 0xff5a1f));
+      seg.material.side = THREE.DoubleSide; seg.rotation.z = Math.PI / 2; seg.position.x = 0.6 + i * 1.2;
+      this.sock.add(seg);
+    }
+    this.sock.position.copy(at(s0 + 260, -(rw.halfWid + 55), RUNWAY_Y + 8.6));
+    scene.add(this.sock);
+    // 跑道距離標示牌（黑底白字，每 300m）與滑行道指示牌（黃底黑字）
+    const boardTex = (txt, bg, fg) => textTexture([[txt, 150, fg]], 256, 192, bg, fg);
+    for (let k = 1; k <= 12; k++) {
+      const sPos = -rw.halfLen + k * 300;
+      if (sPos > rw.halfLen - 100) break;
+      const left = Math.ceil((rw.halfLen - sPos) / 300);
+      const b = put(new THREE.BoxGeometry(2.6, 1.8, 0.3), [lam(0x111111), lam(0x111111), lam(0x111111), lam(0x111111), new THREE.MeshBasicMaterial({ map: boardTex(String(left), '#111111', '#ffffff') }), new THREE.MeshBasicMaterial({ map: boardTex(String(left), '#111111', '#ffffff') })], sPos, -(rw.halfWid + 18), RUNWAY_Y + 1.4, Math.PI / 2);
+      void b;
+    }
+    for (const [sp, txt] of [[s0 + 30, 'N'], [s0 + 520, 'N2'], [s0 + 1100, 'N4']]) {
+      put(new THREE.BoxGeometry(3.2, 1.6, 0.3), [lam(0x222222), lam(0x222222), lam(0x222222), lam(0x222222), new THREE.MeshBasicMaterial({ map: boardTex(txt, '#ffd21f', '#111111') }), new THREE.MeshBasicMaterial({ map: boardTex('05R', '#c0392b', '#ffffff') })], sp, rw.halfWid + 24, RUNWAY_Y + 1.3, Math.PI / 2);
+    }
+    // 機庫（拱形屋頂）與雷達站（旋轉天線）
+    for (let k = 0; k < 3; k++) {
+      const hs = -rw.halfLen * 0.15 + k * 140;
+      put(new THREE.BoxGeometry(110, 22, 90), lam(0xc9ced6), hs, -620, 11);
+      const roof = new THREE.CylinderGeometry(46, 46, 110, 24, 1, false, 0, Math.PI); roof.scale(1, 1, 0.35); roof.rotateZ(Math.PI / 2);
+      const r = new THREE.Mesh(roof, lam(0xe5e8ec)); r.position.copy(at(hs, -620, 22)); r.rotation.y = yaw + Math.PI / 2; scene.add(r);
+      put(new THREE.BoxGeometry(80, 18, 0.5), lam(0x3b4552), hs, -574.6, 9);
+    }
+    put(new THREE.CylinderGeometry(3, 3.5, 24, 10), lam(0xd0d4da), rw.halfLen * 0.35, -760, 12);
+    put(new THREE.SphereGeometry(7, 16, 10), lam(0xf5f6f8), rw.halfLen * 0.35, -760, 29);
+    this.radar = put(new THREE.BoxGeometry(14, 2.2, 1.2), lam(0x9aa3ad), rw.halfLen * 0.1, -720, 16);
+    put(new THREE.CylinderGeometry(0.6, 0.8, 14, 8), lam(0x9aa3ad), rw.halfLen * 0.1, -720, 7);
+    // 跑道頭外的 ILS 定位台天線陣列
+    for (let k = -8; k <= 8; k++) put(new THREE.BoxGeometry(0.4, 3, 0.4), lam(0xff6b35), rw.halfLen + 320, k * 4, RUNWAY_Y + 1.5);
+    // 在另一條跑道等待點等候起飛的飛機
+    const waiting = buildAircraftModel(0x00843d);
+    const rL = runways.find((x) => x.airport === 'TPE' && x.id.startsWith('05L'));
+    if (rL) {
+      const rR = new THREE.Vector3(-rL.dirZ, 0, rL.dirX), dL = new THREE.Vector3(rL.dirX, 0, rL.dirZ);
+      waiting.position.copy(new THREE.Vector3(rL.cx, RUNWAY_Y + GEAR_H, rL.cz).addScaledVector(dL, -rL.halfLen * 0.42).addScaledVector(rR, -95));
+      waiting.rotation.y = -rL.heading * Math.PI / 180 + Math.PI / 2;
+      scene.add(waiting);
+    }
+    // 機場周圍的樹林與圍籬
+    const treeGeo = new THREE.ConeGeometry(4, 11, 7); treeGeo.translate(0, 5.5, 0);
+    const trees = [];
+    for (let k = 0; k < 160; k++) {
+      const side = k % 2 ? 1 : -1, sp = -rw.halfLen * 1.1 + (k / 160) * rw.halfLen * 2.2;
+      trees.push(at(sp + (Math.random() - 0.5) * 30, side * (side > 0 ? 980 : 900) + (Math.random() - 0.5) * 60, RUNWAY_Y - 0.6));
+    }
+    const treeMesh = new THREE.InstancedMesh(treeGeo, lam(0x2f5d2e), trees.length);
+    const tm = new THREE.Matrix4();
+    trees.forEach((p, i) => { const sc = 0.7 + Math.random() * 0.7; treeMesh.setMatrixAt(i, tm.makeScale(sc, sc, sc).setPosition(p)); });
+    scene.add(treeMesh);
+    for (const side of [-1, 1]) {
+      const fence = put(new THREE.BoxGeometry(0.15, 2.4, rw.halfLen * 2.3), lam(0x9aa3ad), 0, side * (side > 0 ? 940 : 860), RUNWAY_Y + 0.6);
+      fence.material.transparent = true; fence.material.opacity = 0.55;
+    }
   }
 
   update(dt, showSalute) {
     this.t += dt;
+    if (this.sock) { this.sock.rotation.set(0, -0.9 + Math.sin(this.t * 0.7) * 0.15, -0.08 + Math.sin(this.t * 3.1) * 0.05); }
+    if (this.radar) this.radar.rotation.y += dt * 1.6;
     // 水門禮
     this.water.visible = showSalute;
     if (showSalute) {

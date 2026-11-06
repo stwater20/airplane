@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { COASTLINES, MOUNTAINS, AIRPORTS, EXTRA_CITIES, toWorld } from './geo.js?v=20261106162641';
+import { COASTLINES, MOUNTAINS, AIRPORTS, EXTRA_CITIES, toWorld } from './geo.js?v=20261107070348';
 
 export const RUNWAY_Y = 2.0;      // 跑道表面高度
 const LAND_Y = 1.0;

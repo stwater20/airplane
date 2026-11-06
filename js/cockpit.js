@@ -1,6 +1,6 @@
 // 駕駛艙內裝：儀表板、遮光板、窗框，以及即時繪製的 PFD / ND / 引擎顯示器
 import * as THREE from 'three';
-import { GEAR_H } from './aircraft.js?v=20261106162641';
+import { GEAR_H } from './aircraft.js?v=20261107070348';
 
 const R2D = 180 / Math.PI;
 

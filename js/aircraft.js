@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RUNWAY_Y, terrainHeight, runwayAt } from './world.js?v=20261106162641';
+import { RUNWAY_Y, terrainHeight, runwayAt } from './world.js?v=20261107070348';
 
 // 單位：SI。機身座標：-Z 前、+Y 上、+X 右
 const G = 9.81;
@@ -94,7 +94,14 @@ function latheAlong(points, segs, phiStart, phiLen, scale = 1) {
   return geo;
 }
 
-export function buildAircraftModel(livery = 0x1b4f9c) {
+// 機型：窄體（預設）、廣體（放大）、商務噴射機（縮小、引擎在機尾）
+export const PLANE_TYPES = {
+  narrow: { name: '窄體客機', sub: 'A320 型・180 人', icon: '✈️', scale: 1, roll: 0.5, bank: 40, pax: 180, comfort: 1 },
+  wide: { name: '廣體客機', sub: '777 型・320 人', icon: '🛫', scale: 1.4, roll: 0.36, bank: 32, pax: 320, comfort: 0.75 },
+  biz: { name: '商務噴射機', sub: '12 人・最靈活', icon: '🛩️', scale: 0.62, roll: 0.78, bank: 48, pax: 12, comfort: 1.25 },
+};
+
+export function buildAircraftModel(livery = 0x1b4f9c, type = 'narrow') {
   const g = new THREE.Group();
   FUS_TEX ||= fuselageTexture(); LOGO_TEX ||= tailLogo(); GLOW_TEX ||= glowTexture();
   const body = new THREE.MeshLambertMaterial({ map: FUS_TEX });
@@ -141,6 +148,7 @@ export function buildAircraftModel(livery = 0x1b4f9c) {
     const eng = new THREE.Mesh(nac, blue);
     eng.position.set(side * 6, -2.15, -3.2);
     g.add(eng);
+    const engParts = [eng];
     const lip = new THREE.Mesh(new THREE.TorusGeometry(1.02, 0.12, 8, 24), metal);
     lip.position.set(side * 6, -2.15, -5.6);
     g.add(lip);
@@ -156,6 +164,15 @@ export function buildAircraftModel(livery = 0x1b4f9c) {
     const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.1, 3.6), grey);
     pylon.position.set(side * 6, -1.4, -2.6);
     g.add(pylon);
+    engParts.push(lip, fan, spin, cone, pylon);
+    if (type === 'biz') {
+      // 商務機：機翼下沒有引擎，改在機尾兩側
+      engParts.forEach((m) => { m.visible = false; });
+      const rear = new THREE.Mesh(nac, blue);
+      rear.scale.setScalar(0.75); rear.position.set(side * 2.9, 1.2, 12.5);
+      g.add(rear);
+      const rp = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 2), grey); rp.position.set(side * 1.9, 1.2, 12.5); g.add(rp);
+    }
     // 水平尾翼
     const hsShape = new THREE.Shape();
     hsShape.moveTo(0, 0); hsShape.lineTo(5.8, 2.4); hsShape.lineTo(5.9, 3.4); hsShape.lineTo(0, 3.2); hsShape.lineTo(0, 0);
@@ -223,6 +240,8 @@ export function buildAircraftModel(livery = 0x1b4f9c) {
   g.add(landing);
 
   g.userData = { gear, strobe, beacon, landing };
+  const sc = (PLANE_TYPES[type] || PLANE_TYPES.narrow).scale;
+  g.scale.setScalar(sc);
   return g;
 }
 
@@ -455,6 +474,8 @@ export class Aircraft {
 
   syncMesh() {
     this.mesh.position.copy(this.pos);
+    // 模型縮放後讓輪胎仍然貼地
+    this.mesh.position.y += GEAR_H * (this.mesh.scale.y - 1);
     this.mesh.quaternion.copy(this.quat);
     const { gear, strobe } = this.mesh.userData;
     gear.visible = this.gearPos > 0.05;

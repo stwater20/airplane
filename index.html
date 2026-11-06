@@ -117,7 +117,8 @@
   #skipBtn { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(150px + var(--sb)); border: 0; border-radius: 999px; padding: 13px 22px;
     font-size: 16px; font-weight: 600; color: #fff; background: rgba(10,132,255,0.92); -webkit-backdrop-filter: var(--sat); backdrop-filter: var(--sat);
     box-shadow: 0 8px 24px rgba(10,132,255,0.35); cursor: pointer; }
-  body.casual.playing[data-stage="cruise"] #skipBtn, body.casual.playing[data-stage="briefing"] #skipBtn, body.casual.playing[data-stage="boarding"] #skipBtn { display: block; }
+  body.casual.playing[data-stage="cruise"] #skipBtn, body.casual.playing[data-stage="briefing"] #skipBtn, body.casual.playing[data-stage="boarding"] #skipBtn, body.casual.playing[data-stage="taxi"] #skipBtn { display: block; }
+  body[data-stage="taxi"] #skipBtn::after { content: '跳過滑行 ›'; }
   body[data-stage="boarding"] #skipBtn::after { content: '跳過登機 ›'; }
   body[data-stage="cruise"] #skipBtn::after { content: '跳到降落 ›'; }
   body[data-stage="briefing"] #skipBtn::after { content: '跳過安全示範 ›'; }
@@ -285,6 +286,11 @@
   .destCard.on { background: linear-gradient(160deg, rgba(10,132,255,0.55), rgba(94,92,230,0.45)); border-color: rgba(140,200,255,0.8);
     box-shadow: 0 8px 24px rgba(10,132,255,0.35), inset 0 1px 0 rgba(255,255,255,0.4); transform: translateY(-2px); }
   .destCard:active { transform: scale(0.97); }
+  .planeCards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+  .planeCard { border: 1px solid rgba(255,255,255,0.14); border-radius: 16px; padding: 8px 4px; cursor: pointer; color: #fff; background: rgba(255,255,255,0.06);
+    display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 12px; transition: background .2s, border-color .2s; }
+  .planeCard span { font-size: 20px; } .planeCard b { font-size: 13px; } .planeCard small { font-size: 10px; color: rgba(255,255,255,0.6); }
+  .planeCard.on { background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.6); }
   .destLine { text-align: center; font-size: 12px; color: rgba(255,255,255,0.7); margin: 10px 0 0; min-height: 16px; }
   .startBig { position: relative; overflow: hidden; width: 100%; margin-top: 12px; border: 0; border-radius: 20px; padding: 17px; cursor: pointer;
     font: 700 19px var(--sf); color: #fff; letter-spacing: 0.02em;
@@ -451,6 +457,11 @@
       <button class="destCard" data-dest="OKA"><span class="dIcon">🏝️</span><b>沖繩那霸</b><small>OKA・650 km</small></button>
     </div>
     <p class="destLine" id="destInfo"></p>
+    <div class="planeCards" role="radiogroup" aria-label="機型">
+      <button class="planeCard" data-plane="narrow"><span>✈️</span><b>窄體客機</b><small>A320 型・均衡</small></button>
+      <button class="planeCard" data-plane="wide"><span>🛫</span><b>廣體客機</b><small>777 型・大又穩</small></button>
+      <button class="planeCard" data-plane="biz"><span>🛩️</span><b>商務噴射機</b><small>小巧・最靈活</small></button>
+    </div>
     <button class="startBig" id="startBtn"><span>開始飛行</span><i class="shine"></i></button>
     <div class="twoTiles">
       <button class="tileBtn" id="dailyBtn"><span class="tIc">📅</span><b>今日挑戰</b><small id="dailyInfo">每天固定路線，比分數</small></button>
@@ -531,6 +542,6 @@
   </div>
 </div>
 
-<script type="module" src="js/main.js?v=20261106162641"></script>
+<script type="module" src="js/main.js?v=20261107070348"></script>
 </body>
 </html>

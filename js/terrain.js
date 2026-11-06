@@ -1,7 +1,7 @@
 // 真實地形：USGS/NOAA 高程（公有領域）＋ NASA Blue Marble 地表顏色，近距離疊加程序細節
 // 圖磚由 scripts/build_tiles.py 產生，放在 tiles/
 import * as THREE from 'three';
-import { toWorld, toLonLat, AIRPORTS } from './geo.js?v=20261106162641';
+import { toWorld, toLonLat, AIRPORTS } from './geo.js?v=20261107070348';
 
 const BASE = 'tiles/';
 const SEG = 32;                 // 每個圖磚網格分段數

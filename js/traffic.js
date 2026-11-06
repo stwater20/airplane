@@ -1,8 +1,8 @@
 // 機場生活感：停機坪上的飛機、空橋、地勤車輛，以及另一條跑道上起降的飛機
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { buildAircraftModel, GEAR_H } from './aircraft.js?v=20261106162641';
-import { runways, RUNWAY_Y } from './world.js?v=20261106162641';
+import { buildAircraftModel, GEAR_H } from './aircraft.js?v=20261107070348';
+import { runways, RUNWAY_Y } from './world.js?v=20261107070348';
 
 const D2R = Math.PI / 180;
 const APRON_Y = 1.6;

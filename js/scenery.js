@@ -1,7 +1,7 @@
 // 額外場景：海上船隻與航跡、落地輪胎煙、夜間進場「兔子燈」
 import * as THREE from 'three';
-import { ROUTES, toWorld } from './geo.js?v=20261106162641';
-import { runways, RUNWAY_Y } from './world.js?v=20261106162641';
+import { ROUTES, toWorld } from './geo.js?v=20261107070348';
+import { runways, RUNWAY_Y } from './world.js?v=20261107070348';
 
 function softTex() {
   const c = document.createElement('canvas'); c.width = c.height = 64;

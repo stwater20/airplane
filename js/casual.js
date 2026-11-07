@@ -1,8 +1,8 @@
 // 輕鬆模式：自動起飛／巡航／降落，玩家只需拖曳讓飛機穿過金色圓環
 import * as THREE from 'three';
-import { RUNWAY_Y, terrainHeight } from './world.js?v=20261107070348';
-import { DESTS } from './geo.js?v=20261107070348';
-import { GEAR_H } from './aircraft.js?v=20261107070348';
+import { RUNWAY_Y, terrainHeight } from './world.js?v=20261107130638';
+import { DESTS } from './geo.js?v=20261107130638';
+import { GEAR_H } from './aircraft.js?v=20261107130638';
 
 const D2R = Math.PI / 180, KT = 0.514444, FT = 0.3048;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));

@@ -1,8 +1,8 @@
 // 桃園機場特色：水門禮、地勤揮手道別、機場招牌、塔台、首航布條、觀音海岸風機、機場捷運
 import * as THREE from 'three';
-import { runways, RUNWAY_Y } from './world.js?v=20261107070348';
-import { buildAircraftModel, GEAR_H } from './aircraft.js?v=20261107070348';
-import { toWorld } from './geo.js?v=20261107070348';
+import { runways, RUNWAY_Y } from './world.js?v=20261107130638';
+import { buildAircraftModel, GEAR_H } from './aircraft.js?v=20261107130638';
+import { toWorld } from './geo.js?v=20261107130638';
 
 const G = 9.81;
 

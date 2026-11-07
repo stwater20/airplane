@@ -1,19 +1,19 @@
 import * as THREE from 'three';
-import { buildWorld, runways, terrainHeight } from './world.js?v=20261107070348';
-import { Aircraft, GEAR_H, FLAP_NAMES, PLANE_TYPES, buildAircraftModel } from './aircraft.js?v=20261107070348';
-import { Autopilot } from './autopilot.js?v=20261107070348';
-import { HUD } from './hud.js?v=20261107070348';
-import { Casual } from './casual.js?v=20261107070348';
-import { GameAudio } from './audio.js?v=20261107070348';
-import { SpeedFX } from './effects.js?v=20261107070348';
-import { Taoyuan } from './taoyuan.js?v=20261107070348';
-import { DESTS } from './geo.js?v=20261107070348';
-import { Boarding } from './boarding.js?v=20261107070348';
-import { progress, LIVERIES, GACHA_COST, ACHIEVEMENTS, todaySeed, todayKey } from './progress.js?v=20261107070348';
-import { Terrain } from './terrain.js?v=20261107070348';
-import { Cockpit } from './cockpit.js?v=20261107070348';
-import { Scenery } from './scenery.js?v=20261107070348';
-import { Traffic } from './traffic.js?v=20261107070348';
+import { buildWorld, runways, terrainHeight } from './world.js?v=20261107130638';
+import { Aircraft, GEAR_H, FLAP_NAMES, PLANE_TYPES, buildAircraftModel } from './aircraft.js?v=20261107130638';
+import { Autopilot } from './autopilot.js?v=20261107130638';
+import { HUD } from './hud.js?v=20261107130638';
+import { Casual } from './casual.js?v=20261107130638';
+import { GameAudio } from './audio.js?v=20261107130638';
+import { SpeedFX } from './effects.js?v=20261107130638';
+import { Taoyuan } from './taoyuan.js?v=20261107130638';
+import { DESTS } from './geo.js?v=20261107130638';
+import { Boarding } from './boarding.js?v=20261107130638';
+import { progress, LIVERIES, GACHA_COST, ACHIEVEMENTS, todaySeed, todayKey } from './progress.js?v=20261107130638';
+import { Terrain } from './terrain.js?v=20261107130638';
+import { Cockpit } from './cockpit.js?v=20261107130638';
+import { Scenery } from './scenery.js?v=20261107130638';
+import { Traffic } from './traffic.js?v=20261107130638';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 // 自動畫質：依實際每秒畫面數調整解析度（手機上避免卡頓）
@@ -38,12 +38,29 @@ function adaptQuality(dt) {
 }
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+// 即時陰影：只在飛機附近、低空時開啟
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.getElementById('view').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.5, 2.5e6);
 const env = buildWorld(scene);
 const { sun, sky } = env;
+const SHADOW = 140;
+sun.shadow.mapSize.set(matchMedia('(pointer: coarse)').matches ? 1024 : 2048, matchMedia('(pointer: coarse)').matches ? 1024 : 2048);
+Object.assign(sun.shadow.camera, { left: -SHADOW, right: SHADOW, top: SHADOW, bottom: -SHADOW, near: 10, far: 2500 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.6;
+// 小型物件投射陰影；地面平面只接收；大量實例（城市建築）不投射以免太耗效能
+function castShadows(root) {
+  root.traverse((o) => {
+    if (!o.isMesh || o.geometry?.type === 'PlaneGeometry') return;
+    if (o.isInstancedMesh && o.count > 400) return;
+    const mats = [].concat(o.material);
+    if (mats.some((m) => !m || m.isShaderMaterial || m.transparent)) return;
+    o.castShadow = true;
+  });
+}
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
 const scenery = new Scenery(scene);
@@ -67,6 +84,7 @@ ac.placeOnRunway(startRunway, -1);
 ap.hdg = startRunway.heading;
 
 boarding.start(ac);   // 首頁背景：停機坪上正在登機的飛機
+castShadows(scene);
 let camScale = 1;            // 依機型大小調整追蹤距離
 const sim = { ac, ap, camera, taoyuan, env, terrain, boarding, quality, timeScale: 1, paused: true, camMode: 0, started: false, casual: true, voice: true, tilt: false };
 sim.audio = new GameAudio();
@@ -471,6 +489,7 @@ function setPlane(type) {
     scene.remove(boarding.group);
     boarding = new Boarding(scene, P.scale, P.pax);
     sim.boarding = boarding;
+    castShadows(ac.mesh); castShadows(boarding.group);
     if (!sim.started) boarding.start(ac);
   }
   ap.bankMax = P.bank;
@@ -755,8 +774,12 @@ function updateCamera(dt) {
   // 防止鏡頭鑽入地面
   camera.position.y = Math.max(camera.position.y, 1.5);
   sky.position.copy(camera.position);
-  sun.position.copy(camera.position).addScaledVector(env.sunDir, 1000);
-  sun.target.position.copy(camera.position);
+  // 陰影跟著飛機；高空或畫質降低時關閉
+  const focus = ac.pos;
+  sun.position.copy(focus).addScaledVector(env.sunDir, 1000);
+  sun.target.position.copy(focus);
+  sun.target.updateMatrixWorld();
+  sun.castShadow = (ac.pos.y - GEAR_H) < 1500 && quality.pr >= 0.85;
 }
 
 function frame() {

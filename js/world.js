@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { COASTLINES, MOUNTAINS, AIRPORTS, EXTRA_CITIES, toWorld } from './geo.js?v=20261107070348';
+import { COASTLINES, MOUNTAINS, AIRPORTS, EXTRA_CITIES, toWorld } from './geo.js?v=20261107130638';
 
 export const RUNWAY_Y = 2.0;      // 跑道表面高度
 const LAND_Y = 1.0;
@@ -65,6 +65,73 @@ function fbmTexture(size, stops, seed = 1) {
   return tex;
 }
 
+// ── 機場地面材質 ──
+function canvasTexture(w, h, draw, repeat = true) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 16;
+  if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+function speckle(g, w, h, n, alpha) {
+  for (let i = 0; i < n; i++) {
+    g.fillStyle = `rgba(${Math.random() < 0.5 ? '0,0,0' : '255,255,255'},${alpha * Math.random()})`;
+    g.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 1 + Math.random() * 2);
+  }
+}
+// 水泥停機坪：每格 25m 的接縫、深淺不一、油漬
+const concreteTex = () => canvasTexture(512, 512, (g, w, h) => {
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+    const v = 150 + Math.random() * 22; g.fillStyle = `rgb(${v},${v},${v - 4})`; g.fillRect(i * 128, j * 128, 128, 128);
+  }
+  speckle(g, w, h, 9000, 0.12);
+  for (let k = 0; k < 7; k++) {
+    const x = Math.random() * w, y = Math.random() * h, r = 8 + Math.random() * 26;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(40,38,34,0.28)'); gr.addColorStop(1, 'rgba(40,38,34,0)');
+    g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  g.fillStyle = 'rgba(70,70,68,0.7)';
+  for (let k = 0; k <= 4; k++) { g.fillRect(k * 128 - 1, 0, 2, h); g.fillRect(0, k * 128 - 1, w, 2); }
+});
+// 草地：割草條紋＋深淺斑塊
+const grassTex = () => canvasTexture(512, 512, (g, w, h) => {
+  for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#62903f' : '#6f9d48'; g.fillRect(i * 64, 0, 64, h); }
+  for (let k = 0; k < 40; k++) {
+    const x = Math.random() * w, y = Math.random() * h, r = 20 + Math.random() * 60;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    const dark = Math.random() < 0.5;
+    gr.addColorStop(0, dark ? 'rgba(40,70,25,0.25)' : 'rgba(160,170,90,0.18)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  speckle(g, w, h, 14000, 0.15);
+});
+// 滑行道柏油：黃色中心線
+const taxiTex = () => canvasTexture(128, 512, (g, w, h) => {
+  g.fillStyle = '#46474a'; g.fillRect(0, 0, w, h);
+  speckle(g, w, h, 3000, 0.1);
+  g.fillStyle = '#e8b81c'; g.fillRect(w / 2 - 3, 0, 6, h);
+  g.fillStyle = 'rgba(232,184,28,0.9)'; g.fillRect(4, 0, 3, h); g.fillRect(w - 7, 0, 3, h);
+});
+// 航廈玻璃帷幕：橫向玻璃帶、窗框、反光
+const facadeTex = () => canvasTexture(512, 256, (g, w, h) => {
+  g.fillStyle = '#d9dde3'; g.fillRect(0, 0, w, h);
+  const gr = g.createLinearGradient(0, 40, 0, 220); gr.addColorStop(0, '#5c7894'); gr.addColorStop(0.5, '#2f4a66'); gr.addColorStop(1, '#3d5a78');
+  g.fillStyle = gr; g.fillRect(0, 40, w, 180);
+  g.fillStyle = 'rgba(255,255,255,0.18)';
+  g.beginPath(); g.moveTo(60, 40); g.lineTo(160, 40); g.lineTo(80, 220); g.lineTo(-20, 220); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(330, 40); g.lineTo(380, 40); g.lineTo(300, 220); g.lineTo(250, 220); g.closePath(); g.fill();
+  g.fillStyle = '#c5cad1';
+  for (let x = 0; x <= w; x += 32) g.fillRect(x - 2, 40, 4, 180);
+  g.fillRect(0, 128, w, 4);
+  g.fillStyle = '#9aa1aa'; g.fillRect(0, 220, w, 36);
+});
+function scaleUV(geo, sx, sy) {
+  const uv = geo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * sx, uv.getY(i) * sy);
+  return geo;
+}
+
 function runwayTexture(lengthM, widthM, labels) {
   const W = 128, H = 2048;
   const c = document.createElement('canvas');
@@ -90,10 +157,22 @@ function runwayTexture(lengthM, widthM, labels) {
       const x = 10 + s * 7 + (s >= 4 ? 18 : 0);
       g.fillRect(x, y0, 4, 45 * pxPerM);
     }
-    // 著陸區標誌
-    const yz = end ? H - 300 * pxPerM - 60 * pxPerM : 300 * pxPerM;
-    g.fillRect(28, yz, 14, 60 * pxPerM);
-    g.fillRect(W - 42, yz, 14, 60 * pxPerM);
+    // 瞄準點（兩條粗白塊）
+    const yz = end ? H - 400 * pxPerM - 60 * pxPerM : 400 * pxPerM;
+    g.fillRect(26, yz, 16, 60 * pxPerM);
+    g.fillRect(W - 42, yz, 16, 60 * pxPerM);
+    // 著陸區標線：150m 起每 150m 一組（3、2、2、1 條）
+    [[150, 3], [300, 2], [550, 2], [700, 1], [850, 1]].forEach(([d, n]) => {
+      const y = end ? H - (d + 22) * pxPerM : d * pxPerM;
+      for (let k = 0; k < n; k++) { g.fillRect(14 + k * 7, y, 4, 22 * pxPerM); g.fillRect(W - 18 - k * 7, y, 4, 22 * pxPerM); }
+    });
+    // 輪胎磨痕
+    for (let k = 0; k < 70; k++) {
+      const d = 250 + Math.random() * 650, y = end ? H - d * pxPerM : d * pxPerM;
+      g.fillStyle = `rgba(15,15,15,${0.08 + Math.random() * 0.12})`;
+      g.fillRect(W / 2 - 22 + Math.random() * 44, y, 2 + Math.random() * 3, (8 + Math.random() * 30) * pxPerM);
+    }
+    g.fillStyle = '#e8e8e8';
   }
   // 跑道號碼
   g.font = 'bold 34px sans-serif';
@@ -286,9 +365,13 @@ export function buildWorld(scene) {
   }
 
   // 機場
-  const grassMat = new THREE.MeshLambertMaterial({ color: 0x6d8f4a });
-  const apronMat = new THREE.MeshLambertMaterial({ color: 0x8d8d8a });
-  const lights = { w: [], r: [], g: [] };
+  const grassMat = new THREE.MeshLambertMaterial({ map: grassTex() });
+  const apronMat = new THREE.MeshLambertMaterial({ map: concreteTex() });
+  const taxiMat = new THREE.MeshLambertMaterial({ map: taxiTex() });
+  const facade = facadeTex();
+  const roofMat = new THREE.MeshLambertMaterial({ color: 0x8f969f });
+  let rwIndex = 0;
+  const lights = { w: [], r: [], g: [], b: [] };
   const addLight = (kind, x, y, z, sc = 1) => lights[kind].push([x, y, z, sc]);
   for (const [code, ap] of Object.entries(AIRPORTS)) {
     for (const rw of ap.runways) {
@@ -297,10 +380,13 @@ export function buildWorld(scene) {
       const dirX = Math.sin(hr), dirZ = -Math.cos(hr);
       const rot = -hr; // 繞 Y 軸，使 -Z 指向跑道方向
 
-      const grass = new THREE.Mesh(new THREE.PlaneGeometry(rw.width * 8, rw.length + 1200), grassMat);
+      const gW = 1300, gL = rw.length + 1600;
+      const grass = new THREE.Mesh(scaleUV(new THREE.PlaneGeometry(gW, gL), gW / 96, gL / 96), grassMat);
       grass.rotation.set(-Math.PI / 2, 0, rot);
-      grass.position.set(c.x, LAND_Y + 0.4, c.z);
+      grass.position.set(c.x - dirZ * 120, LAND_Y + 0.4 - rwIndex * 0.05, c.z + dirX * 120);
+      grass.receiveShadow = true;
       scene.add(grass);
+      rwIndex++;
 
       let [a, b] = rw.id.split('/');
       if (Math.abs(((parseInt(a, 10) * 10 - rw.heading + 540) % 360) - 180) > 90) [a, b] = [b, a];
@@ -308,18 +394,49 @@ export function buildWorld(scene) {
       const strip = new THREE.Mesh(new THREE.PlaneGeometry(rw.width, rw.length), new THREE.MeshLambertMaterial({ map: tex }));
       strip.rotation.set(-Math.PI / 2, 0, rot);
       strip.position.set(c.x, RUNWAY_Y, c.z);
+      strip.receiveShadow = true;
       scene.add(strip);
+      // 跑道肩（淺色鋪面）
+      const shoulder = new THREE.Mesh(new THREE.PlaneGeometry(rw.width + 16, rw.length + 60), new THREE.MeshLambertMaterial({ color: 0x8a8b86 }));
+      shoulder.rotation.set(-Math.PI / 2, 0, rot);
+      shoulder.position.set(c.x, RUNWAY_Y - 0.15, c.z);
+      shoulder.receiveShadow = true;
+      scene.add(shoulder);
 
       // 機坪與航廈
       const px = -dirZ, pz = dirX; // 右側法向
-      const apron = new THREE.Mesh(new THREE.PlaneGeometry(400, rw.length * 0.5), apronMat);
+      const apron = new THREE.Mesh(scaleUV(new THREE.PlaneGeometry(400, rw.length * 0.5), 400 / 100, rw.length * 0.5 / 100), apronMat);
       apron.rotation.set(-Math.PI / 2, 0, rot);
       apron.position.set(c.x + px * 350, LAND_Y + 0.6, c.z + pz * 350);
+      apron.receiveShadow = true;
       scene.add(apron);
-      const term = new THREE.Mesh(new THREE.BoxGeometry(120, 22, rw.length * 0.48), new THREE.MeshLambertMaterial({ color: 0xc9ccd2 }));
+      // 滑行道：從跑道連到停機坪（三條），加上停止線
+      for (const f of [-0.36, 0, 0.36]) {
+        const tl = 150 - (rw.width / 2 + 4);
+        const tw = new THREE.Mesh(scaleUV(new THREE.PlaneGeometry(23, tl), 1, tl / 40), taxiMat);
+        tw.rotation.set(-Math.PI / 2, 0, rot + Math.PI / 2);
+        const sAl = f * rw.length, mid = rw.width / 2 + 4 + tl / 2;
+        tw.position.set(c.x + dirX * sAl + px * mid, LAND_Y + 0.62, c.z + dirZ * sAl + pz * mid);
+        tw.receiveShadow = true;
+        scene.add(tw);
+        for (let k = 0; k <= tl; k += 30) for (const side of [-1, 1]) {
+          const lx = c.x + dirX * (sAl + side * 13) + px * (rw.width / 2 + 4 + k), lz = c.z + dirZ * (sAl + side * 13) + pz * (rw.width / 2 + 4 + k);
+          addLight('b', lx, LAND_Y + 1.1, lz, 0.7);
+        }
+      }
+      // 航廈：玻璃帷幕＋屋頂
+      const tL = rw.length * 0.48;
+      const fTex = facade.clone(); fTex.repeat.set(tL / 60, 1); fTex.needsUpdate = true;
+      const fEnd = facade.clone(); fEnd.repeat.set(2, 1); fEnd.needsUpdate = true;
+      const fm = new THREE.MeshLambertMaterial({ map: fTex }), fe = new THREE.MeshLambertMaterial({ map: fEnd });
+      const term = new THREE.Mesh(new THREE.BoxGeometry(120, 22, tL), [fm, fm, roofMat, roofMat, fe, fe]);
       term.rotation.y = rot;
       term.position.set(c.x + px * 600, 11, c.z + pz * 600);
+      term.castShadow = true; term.receiveShadow = true;
       scene.add(term);
+      const eave = new THREE.Mesh(new THREE.BoxGeometry(136, 1.2, tL + 12), new THREE.MeshLambertMaterial({ color: 0xe4e7eb }));
+      eave.rotation.y = rot; eave.position.set(c.x + px * 600, 22.6, c.z + pz * 600); eave.castShadow = true;
+      scene.add(eave);
       const tower = new THREE.Mesh(new THREE.CylinderGeometry(6, 8, 70, 8), new THREE.MeshLambertMaterial({ color: 0xe0e0e0 }));
       tower.position.set(c.x + px * 520 + dirX * rw.length * 0.25, 35, c.z + pz * 520 + dirZ * rw.length * 0.25);
       scene.add(tower);
@@ -338,15 +455,15 @@ export function buildWorld(scene) {
         // 進場燈（延伸 900m）
         for (let d = 30; d <= 900; d += 30) {
           const s = end * (halfLen + d);
-          addLight('w', c.x + dirX * s, RUNWAY_Y + 3, c.z + dirZ * s, d % 150 === 0 ? 2.5 : 1.4);
+          addLight('w', c.x + dirX * s, RUNWAY_Y + 3, c.z + dirZ * s, d % 150 === 0 ? 3.2 : 2);
         }
       }
       runways.push({ cx: c.x, cz: c.z, dirX, dirZ, halfLen, halfWid, heading: rw.heading, id: rw.id, airport: code, ils: rw.ils });
     }
   }
 
-  const bulb = new THREE.SphereGeometry(1.2, 6, 4);
-  const lightColors = { w: 0xffffee, r: 0xff3020, g: 0x30ff60 };
+  const bulb = new THREE.SphereGeometry(0.42, 8, 6);
+  const lightColors = { w: 0xffffee, r: 0xff3020, g: 0x30ff60, b: 0x3a7bff };
   for (const [kind, list] of Object.entries(lights)) {
     const im = new THREE.InstancedMesh(bulb, new THREE.MeshBasicMaterial({ color: lightColors[kind] }), list.length);
     const mm = new THREE.Matrix4();
@@ -458,8 +575,8 @@ export function buildWorld(scene) {
   scene.add(clouds);
 
   const PRESETS = {
-    day: { top: 0x0f45a8, bottom: 0x9fc6ee, fog: 0x9cc0e6, sunDir: [-0.5, 1, 0.3], sunCol: 0xfff1d6, sunI: 2.4, sunSize: 0.6,
-      hemiSky: 0xdfefff, hemiGround: 0x445533, hemiI: 1.3, deep: 0x0d3554, lit: 0xffffff, shade: 0xb4c0d2, stars: 0, city: false, exposure: 1.0 },
+    day: { top: 0x0f45a8, bottom: 0x9fc6ee, fog: 0x9cc0e6, sunDir: [-0.5, 1, 0.3], sunCol: 0xfff1d6, sunI: 2.9, sunSize: 0.6,
+      hemiSky: 0xdfefff, hemiGround: 0x445533, hemiI: 1.0, deep: 0x0d3554, lit: 0xffffff, shade: 0xb4c0d2, stars: 0, city: false, exposure: 1.0 },
     dawn: { top: 0x24386f, bottom: 0xffb27a, fog: 0xeaa985, sunDir: [0.85, 0.1, -0.5], sunCol: 0xffa860, sunI: 2.0, sunSize: 1.3,
       hemiSky: 0xffd2b0, hemiGround: 0x5a4a50, hemiI: 1.3, deep: 0x1a2440, lit: 0xffd3ad, shade: 0x8d6a86, stars: 0, city: true, exposure: 1.05 },
     night: { top: 0x01030b, bottom: 0x0c1834, fog: 0x0b1530, sunDir: [-0.3, 0.55, -0.6], sunCol: 0x9fb4ff, sunI: 0.35, sunSize: 0.25,
